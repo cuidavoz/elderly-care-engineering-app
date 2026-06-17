@@ -15,7 +15,7 @@ from datetime import date
 
 from src.orchestrator.state import GraphState
 from src.pipeline.llm import LLMClient
-from src.schemas import Reporte
+from src.schemas import Claim, Faithfulness, Reporte
 
 # Prompt del reporte: describe el esquema campo por campo y fija las reglas de
 # anti-alucinación. Tono es-AR, coherente con el resto del repo.
@@ -142,25 +142,63 @@ def _normalizar(texto: str) -> str:
     return texto.strip().lower()
 
 
-def _filtrar_claims_no_fieles(reporte: Reporte, transcripcion: str) -> Reporte:
-    """Guard de faithfulness: descarta los claims sin respaldo en el texto.
+def _es_fiel(claim: Claim, base_normalizada: str) -> bool:
+    """Definición ÚNICA de "claim fundamentado".
 
-    Conserva solo los claims cuyo `fuente_textual` (normalizado) sea substring
-    de la transcripción (normalizada). Así ninguna afirmación del reporte queda
-    citando un fragmento que el adulto mayor no dijo.
+    Un claim es fiel si su `fuente_textual` (normalizado) es substring no vacío
+    de la transcripción (ya normalizada en `base_normalizada`). Este helper es la
+    fuente de verdad compartida por el guard (`_filtrar_claims_no_fieles`) y por
+    el cálculo de la métrica (`_calcular_faithfulness`), para que score y guard
+    nunca diverjan.
+    """
+    fuente = _normalizar(claim.fuente_textual)
+    return bool(fuente) and fuente in base_normalizada
+
+
+def _calcular_faithfulness(reporte: Reporte, transcripcion: str) -> Faithfulness:
+    """Mide la fidelidad sobre los claims CRUDOS del LLM (estilo FActScore).
+
+    Se llama ANTES del guard a propósito: si se midiera sobre los claims ya
+    filtrados daría 1.0 trivial siempre. `score = n_grounded / n_claims`, o
+    `None` si no hay claims.
     """
     base = _normalizar(transcripcion)
-    fieles = []
+    n_claims = len(reporte.claims)
+    n_grounded = sum(1 for c in reporte.claims if _es_fiel(c, base))
+    score = (n_grounded / n_claims) if n_claims else None
+    return Faithfulness(
+        score=score,
+        n_claims=n_claims,
+        n_grounded=n_grounded,
+        metodo="substring",
+    )
+
+
+def _filtrar_claims_no_fieles(reporte: Reporte, transcripcion: str) -> Reporte:
+    """Guard de faithfulness: particiona los claims según su respaldo en el texto.
+
+    Los claims cuyo `fuente_textual` (normalizado) es substring de la
+    transcripción (normalizada) quedan en `reporte.claims`; los demás NO se
+    pierden: se conservan en `reporte.claims_descartados` (las "alucinaciones"
+    filtradas), para poder mostrar en la UI qué afirmó el modelo sin sustento.
+    Así ninguna afirmación del reporte queda citando un fragmento que el adulto
+    mayor no dijo. Usa la misma definición de fidelidad (`_es_fiel`) que el
+    cálculo de la métrica. Se reparte en una sola pasada sobre los claims crudos.
+    """
+    base = _normalizar(transcripcion)
+    fieles: list[Claim] = []
+    descartados: list[Claim] = []
     for c in reporte.claims:
-        fuente = _normalizar(c.fuente_textual)
-        if fuente and fuente in base:
-            fieles.append(c)
+        (fieles if _es_fiel(c, base) else descartados).append(c)
     reporte.claims = fieles
+    reporte.claims_descartados = descartados
     return reporte
 
 
 def run(state: GraphState) -> GraphState:
     # Camino incompleto: si la transcripción fue poco confiable, no inventamos.
+    # No hay claims que medir, así que `faithfulness` queda en None (n_claims=0):
+    # es más honesto que reportar un score sobre cero claims.
     if state.get("error") == "transcripcion_poco_confiable":
         state["reporte"] = Reporte(
             fecha=date.today(),
@@ -175,6 +213,10 @@ def run(state: GraphState) -> GraphState:
     raw = llm.complete(SYSTEM, transcripcion, json_mode=True)
 
     reporte = _parsear_reporte(raw, transcripcion)
+    # Medimos la fidelidad sobre los claims CRUDOS del LLM, ANTES del guard:
+    # después de filtrar daría 1.0 trivial. Recién después descartamos los no
+    # fundamentados de `reporte.claims`.
+    reporte.faithfulness = _calcular_faithfulness(reporte, transcripcion)
     reporte = _filtrar_claims_no_fieles(reporte, transcripcion)
     state["reporte"] = reporte
     return state

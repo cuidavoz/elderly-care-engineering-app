@@ -3,7 +3,10 @@ import type {
   Alert,
   Elder,
   Family,
+  FamilyMember,
+  FamilyRole,
   FamilyWithRole,
+  Invite,
   Report,
 } from "@/lib/types";
 
@@ -157,6 +160,70 @@ export async function getAlerts(elderId: string): Promise<Alert[]> {
   return alerts.sort(
     (a, b) => (rank[a.estado] ?? 3) - (rank[b.estado] ?? 3)
   );
+}
+
+const INVITE_COLUMNS =
+  "id, family_id, email, rol, token, invited_by, status, created_at, accepted_at, accepted_by";
+
+/**
+ * Miembros de una familia con su perfil (nombre/email). Hacemos el join desde
+ * `family_members` hacia `profiles`. El owner va primero; dentro de cada rol,
+ * orden alfabético por nombre (los sin nombre, al final).
+ */
+export async function getFamilyMembers(
+  familyId: string
+): Promise<FamilyMember[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("family_members")
+    .select("rol, profile_id, profiles(id, nombre, email)")
+    .eq("family_id", familyId);
+
+  if (error) {
+    throw new Error(`No se pudieron cargar los miembros: ${error.message}`);
+  }
+
+  type ProfileRow = { id: string; nombre: string | null; email: string | null };
+  type Row = {
+    rol: FamilyRole;
+    profile_id: string;
+    profiles: ProfileRow | null;
+  };
+
+  const members: FamilyMember[] = ((data ?? []) as unknown as Row[]).map(
+    (row) => ({
+      profile_id: row.profile_id,
+      nombre: row.profiles?.nombre ?? null,
+      email: row.profiles?.email ?? null,
+      rol: row.rol,
+    })
+  );
+
+  // Owner primero; dentro del grupo, por nombre (los sin nombre al final).
+  return members.sort((a, b) => {
+    if (a.rol !== b.rol) return a.rol === "owner" ? -1 : 1;
+    const an = a.nombre ?? "￿";
+    const bn = b.nombre ?? "￿";
+    return an.localeCompare(bn, "es");
+  });
+}
+
+/** Invitaciones pendientes de una familia, más recientes primero. */
+export async function getInvites(familyId: string): Promise<Invite[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("invites")
+    .select(INVITE_COLUMNS)
+    .eq("family_id", familyId)
+    .eq("status", "pendiente")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`No se pudieron cargar las invitaciones: ${error.message}`);
+  }
+  return (data ?? []) as unknown as Invite[];
 }
 
 /** Cantidad de alertas pendientes de un adulto mayor (para el badge del tab). */

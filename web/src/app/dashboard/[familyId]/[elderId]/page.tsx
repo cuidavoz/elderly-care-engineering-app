@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { FileText } from "lucide-react";
+import { FileText, ShieldCheck } from "lucide-react";
 
+import { Card, CardContent } from "@/components/ui/card";
 import { getElder, getReports } from "@/lib/data/queries";
 import { ReportCard } from "../../_components/report-card";
 import { EmptyState } from "../../_components/empty-state";
@@ -33,8 +34,46 @@ export default async function ReportesPage({
     );
   }
 
+  // Promedio de fidelidad: proporción de afirmaciones del modelo respaldadas por
+  // la transcripción, a través de los reportes que la tengan calculada. Los
+  // reportes viejos (sin `faithfulness`) o sin claims (score null) se ignoran.
+  const scoresFidelidad = reports
+    .map((r) => r.payload?.faithfulness?.score)
+    .filter((s): s is number => typeof s === "number");
+  const fidelidadPromedio =
+    scoresFidelidad.length > 0
+      ? Math.round(
+          (scoresFidelidad.reduce((acc, s) => acc + s, 0) /
+            scoresFidelidad.length) *
+            100
+        )
+      : null;
+
   return (
     <div className="flex flex-col gap-4">
+      {fidelidadPromedio !== null && (
+        <Card size="sm">
+          <CardContent className="flex items-center gap-3">
+            <ShieldCheck className="text-primary size-5 shrink-0" />
+            <div className="space-y-0.5">
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Fidelidad promedio
+              </p>
+              <p className="text-sm">
+                <span className="text-base font-semibold">
+                  {fidelidadPromedio}%
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  de las afirmaciones generadas estuvieron respaldadas por las
+                  transcripciones ({scoresFidelidad.length}{" "}
+                  {scoresFidelidad.length === 1 ? "reporte" : "reportes"})
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {reports.map((report) => (
         <ReportCard key={report.id} report={report} />
       ))}

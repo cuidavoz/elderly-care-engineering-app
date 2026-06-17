@@ -2,15 +2,19 @@ import {
   Activity,
   AlertTriangle,
   CalendarDays,
+  Check,
   HeartPulse,
   Moon,
+  ScrollText,
+  ShieldCheck,
   Smile,
+  X,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { PayloadAlerta, Report } from "@/lib/types";
+import type { PayloadAlerta, Report, ReporteClaim } from "@/lib/types";
 import { SeverityChip, severityCardBorder } from "./severity";
 
 function formatFecha(fecha: string) {
@@ -63,6 +67,19 @@ export function ReportCard({ report }: { report: Report }) {
   const actividades = p.actividades ?? [];
   const alertas: PayloadAlerta[] = p.alertas ?? [];
 
+  // Fidelidad: proporción de afirmaciones del modelo respaldadas por la
+  // transcripción. Puede faltar en reportes viejos (manejo defensivo).
+  const fidScore = p.faithfulness?.score ?? null;
+  const fidPct = typeof fidScore === "number" ? Math.round(fidScore * 100) : null;
+  const nGrounded = p.faithfulness?.n_grounded ?? 0;
+  const nClaims = p.faithfulness?.n_claims ?? 0;
+
+  // Evidencia de fidelidad: afirmaciones respaldadas vs. descartadas por el
+  // guard. Ambos arrays pueden faltar/venir vacíos en reportes viejos.
+  const claims: ReporteClaim[] = p.claims ?? [];
+  const claimsDescartados: ReporteClaim[] = p.claims_descartados ?? [];
+  const hayEvidencia = claims.length > 0 || claimsDescartados.length > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -76,6 +93,15 @@ export function ReportCard({ report }: { report: Report }) {
           <div className="flex items-center gap-2">
             {confianza !== null && (
               <Badge variant="secondary">Confianza {confianza}%</Badge>
+            )}
+            {fidPct !== null && (
+              <Badge
+                variant={fidScore! < 0.7 ? "destructive" : "secondary"}
+                title={`${nGrounded} de ${nClaims} afirmaciones respaldadas por la transcripción`}
+              >
+                <ShieldCheck />
+                Fidelidad {fidPct}%
+              </Badge>
             )}
             {report.incompleto && (
               <Badge variant="outline">Incompleto</Badge>
@@ -166,7 +192,123 @@ export function ReportCard({ report }: { report: Report }) {
             </div>
           </div>
         )}
+
+        {hayEvidencia && (
+          <details className="group/evidencia border-t pt-3">
+            <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium tracking-wide uppercase transition-colors [&::-webkit-details-marker]:hidden">
+              <ScrollText className="size-3.5" />
+              Ver evidencia de fidelidad
+              <span className="text-muted-foreground/80 normal-case tracking-normal">
+                ({claims.length}{" "}
+                {claims.length === 1 ? "respaldada" : "respaldadas"}
+                {claimsDescartados.length > 0 &&
+                  ` · ${claimsDescartados.length} ${
+                    claimsDescartados.length === 1 ? "descartada" : "descartadas"
+                  }`}
+                )
+              </span>
+            </summary>
+
+            <div className="mt-3 space-y-4">
+              {claims.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+                    <ShieldCheck className="size-3.5" />
+                    Afirmaciones respaldadas
+                  </p>
+                  <div className="space-y-1.5">
+                    {claims.map((claim, i) => (
+                      <ClaimItem key={i} claim={claim} respaldado />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+                  <AlertTriangle className="size-3.5" />
+                  Afirmaciones descartadas
+                </p>
+                {claimsDescartados.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {claimsDescartados.map((claim, i) => (
+                      <ClaimItem key={i} claim={claim} respaldado={false} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                    <Check className="size-4 shrink-0 text-green-600 dark:text-green-400" />
+                    Sin afirmaciones descartadas: todo lo que afirmó el modelo
+                    tenía respaldo en la transcripción.
+                  </p>
+                )}
+              </div>
+            </div>
+          </details>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Una afirmación del modelo con su trazabilidad. Si `respaldado`, se la marca
+ * en verde (citamos la fuente textual de la transcripción); si no, en rojo
+ * (el modelo la afirmó pero el guard la descartó por no tener respaldo).
+ */
+function ClaimItem({
+  claim,
+  respaldado,
+}: {
+  claim: ReporteClaim;
+  respaldado: boolean;
+}) {
+  const Icon = respaldado ? Check : X;
+  return (
+    <div
+      className={cn(
+        "bg-muted/40 flex items-start gap-2 rounded-md border-l-2 px-3 py-2 text-sm",
+        respaldado ? "border-l-green-500" : "border-l-red-500"
+      )}
+    >
+      <Icon
+        aria-hidden="true"
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          respaldado
+            ? "text-green-600 dark:text-green-400"
+            : "text-red-600 dark:text-red-400"
+        )}
+      />
+      <div className="space-y-1">
+        <p className="font-medium">
+          <span className="sr-only">
+            {respaldado ? "Respaldada: " : "Descartada: "}
+          </span>
+          {claim.afirmacion ?? "(sin afirmación)"}
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {claim.campo && (
+            <Badge variant="outline" className="font-normal">
+              {claim.campo}
+            </Badge>
+          )}
+        </div>
+        {respaldado ? (
+          claim.fuente_textual && (
+            <p className="text-muted-foreground">
+              Respaldado por: «{claim.fuente_textual}»
+            </p>
+          )
+        ) : (
+          <p className="text-muted-foreground">
+            No está respaldada por la transcripción
+            {claim.fuente_textual
+              ? `: el modelo citó «${claim.fuente_textual}», pero ese texto no aparece en lo que dijo el adulto mayor.`
+              : "; el modelo la afirmó sin una cita verificable y el guard la filtró."}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

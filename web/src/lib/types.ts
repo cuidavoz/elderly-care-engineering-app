@@ -11,6 +11,38 @@ export type FamilyRole = "owner" | "caregiver";
 export type AlertSeverity = "baja" | "media" | "alta";
 export type AlertEstado = "pendiente" | "vista" | "resuelta";
 
+/** Estado de una invitación a colaborar en una familia. */
+export type InviteStatus = "pendiente" | "aceptada" | "revocada";
+
+/**
+ * Invitación a sumarse a una familia. La crea un miembro; el invitado abre el
+ * link con el `token` (único) y la acepta. `token` y `status` los pone la DB
+ * por default al insertar.
+ */
+export type Invite = {
+  id: string;
+  family_id: string;
+  email: string;
+  rol: FamilyRole;
+  token: string;
+  invited_by: string;
+  status: InviteStatus;
+  created_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+};
+
+/**
+ * Miembro de una familia con su perfil. `nombre`/`email` pueden venir null si el
+ * perfil asociado todavía no tiene esos datos.
+ */
+export type FamilyMember = {
+  profile_id: string;
+  nombre: string | null;
+  email: string | null;
+  rol: FamilyRole;
+};
+
 export type Family = {
   id: string;
   nombre: string;
@@ -100,6 +132,11 @@ export type ReportePayload = {
   alertas?: PayloadAlerta[];
   resumen?: string | null;
   claims?: ReporteClaim[];
+  // Afirmaciones que el modelo generó pero el guard descartó por no tener
+  // respaldo en la transcripción (alucinaciones filtradas). Puede faltar o
+  // venir vacío en reportes viejos / sin claims.
+  claims_descartados?: ReporteClaim[];
+  faithfulness?: Faithfulness | null;
   incompleto?: boolean;
 };
 
@@ -113,4 +150,18 @@ export type ReporteClaim = {
   afirmacion?: string;
   campo?: string;
   fuente_textual?: string;
+};
+
+/**
+ * Fidelidad (faithfulness) del reporte respecto de la transcripción: mide qué
+ * proporción de las afirmaciones que el modelo generó estaban realmente
+ * respaldadas por lo que dijo el adulto mayor (cuántas NO fueron alucinadas).
+ * Se calcula sobre los claims crudos del LLM. Puede venir ausente/`null` en
+ * reportes viejos.
+ */
+export type Faithfulness = {
+  score?: number | null; // 0..1; null si el reporte no tuvo claims
+  n_claims?: number; // claims crudos del modelo
+  n_grounded?: number; // cuántos estaban respaldados por la transcripción
+  metodo?: string; // p. ej. "substring"
 };

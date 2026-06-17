@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import type { AlertEstado } from "@/lib/types";
+import type { AlertEstado, FamilyRole } from "@/lib/types";
 
 /**
  * Server Actions de mutación para CuidaVoz.
@@ -100,6 +100,147 @@ export async function createElder(
 
   revalidatePath(`/dashboard/${familyId}`, "layout");
   return { ok: true, data: { id: data.id } };
+}
+
+const VALID_ROLES: FamilyRole[] = ["owner", "caregiver"];
+
+// Regex simple para descartar entradas claramente inválidas (no valida RFC).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Crea una invitación pendiente para un email. El `token` y el `status` los
+ * pone la DB por default. La RLS valida que el usuario sea miembro de la familia.
+ * Si ya hay una invitación pendiente para ese email (unique violation, 23505),
+ * devolvemos un mensaje amable en vez del error crudo de Postgres.
+ */
+export async function createInvite(
+  _prevState: ActionResult<{ token: string }> | null,
+  formData: FormData
+): Promise<ActionResult<{ token: string }>> {
+  const familyId = String(formData.get("familyId") ?? "").trim();
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  const rolRaw = String(formData.get("rol") ?? "caregiver").trim();
+  const rol = (VALID_ROLES.includes(rolRaw as FamilyRole)
+    ? rolRaw
+    : "caregiver") as FamilyRole;
+
+  if (!familyId) {
+    return { ok: false, error: "Falta la familia." };
+  }
+  if (!email) {
+    return { ok: false, error: "Poné el correo de la persona a invitar." };
+  }
+  if (email.length > 120) {
+    return { ok: false, error: "El correo es demasiado largo (máx. 120)." };
+  }
+  if (!EMAIL_RE.test(email)) {
+    return { ok: false, error: "Ese correo no parece válido." };
+  }
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { ok: false, error: "Tu sesión expiró. Volvé a ingresar." };
+  }
+
+  const { data, error } = await supabase
+    .from("invites")
+    .insert({ family_id: familyId, email, rol, invited_by: user.id })
+    .select("token")
+    .single();
+
+  if (error || !data) {
+    // 23505 = unique_violation → ya existe una invitación pendiente para ese email.
+    if (error?.code === "23505") {
+      return {
+        ok: false,
+        error: "Ya hay una invitación pendiente para ese correo.",
+      };
+    }
+    return {
+      ok: false,
+      error: `No se pudo crear la invitación: ${error?.message ?? "error desconocido"}`,
+    };
+  }
+
+  revalidatePath(`/dashboard/${familyId}`, "layout");
+  return { ok: true, data: { token: data.token as string } };
+}
+
+/**
+ * Revoca una invitación pendiente (la marca como 'revocada'). La RLS valida que
+ * el usuario pertenezca a la familia de la invitación.
+ */
+export async function revokeInvite(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const inviteId = String(formData.get("inviteId") ?? "").trim();
+  const familyId = String(formData.get("familyId") ?? "").trim();
+
+  if (!inviteId) {
+    return { ok: false, error: "Falta la invitación." };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("invites")
+    .update({ status: "revocada" })
+    .eq("id", inviteId);
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudo revocar la invitación: ${error.message}`,
+    };
+  }
+
+  if (familyId) {
+    revalidatePath(`/dashboard/${familyId}`, "layout");
+  } else {
+    revalidatePath("/dashboard", "layout");
+  }
+  return { ok: true, data: undefined };
+}
+
+/**
+ * Acepta una invitación a partir del token. No es una action de formulario: la
+ * llama la página de aceptación. El RPC `accept_invite` valida el token (vigente,
+ * no usado) y que el email coincida con la cuenta logueada; si algo falla, tira
+ * un error de Postgres que traducimos a un mensaje amable. Al aceptar devuelve
+ * el `family_id` (uuid escalar).
+ */
+export async function acceptInvite(
+  token: string
+): Promise<ActionResult<{ familyId: string }>> {
+  const cleanToken = String(token ?? "").trim();
+  if (!cleanToken) {
+    return { ok: false, error: "El link de invitación no es válido." };
+  }
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("accept_invite", {
+    _token: cleanToken,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudo aceptar la invitación: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, data: { familyId: String(data) } };
 }
 
 const VALID_ESTADOS: AlertEstado[] = ["pendiente", "vista", "resuelta"];

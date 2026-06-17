@@ -52,6 +52,16 @@ class Claim(BaseModel):
     fuente_textual: str      # substring de la transcripción que la respalda
 
 
+class Faithfulness(BaseModel):
+    """Métrica de fidelidad del reporte respecto de la transcripción (estilo
+    FActScore): se calcula sobre los claims CRUDOS del LLM (antes del guard),
+    para reflejar la fidelidad real del modelo y no un 1.0 trivial."""
+    score: Optional[float] = None   # 0..1; None si no hay claims
+    n_claims: int = 0               # claims crudos del LLM
+    n_grounded: int = 0             # cuántos estaban fundamentados
+    metodo: str = "substring"
+
+
 class Reporte(BaseModel):
     fecha: date
     salud: Salud = Field(default_factory=Salud)
@@ -61,4 +71,9 @@ class Reporte(BaseModel):
     alertas: list[Alerta] = Field(default_factory=list)
     resumen: str = ""
     claims: list[Claim] = Field(default_factory=list)
+    # Claims que el LLM afirmó pero el guard descartó por NO estar respaldados en
+    # la transcripción (las "alucinaciones" filtradas). Se conservan para poder
+    # mostrar la evidencia de fidelidad: qué afirmó el modelo sin sustento.
+    claims_descartados: list[Claim] = Field(default_factory=list)
     incompleto: bool = False  # True si la transcripción fue poco confiable
+    faithfulness: Optional[Faithfulness] = None  # fidelidad sobre claims crudos

@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 import { signout } from "@/app/(auth)/actions";
 
 export function DashboardHeader({
@@ -12,9 +13,7 @@ export function DashboardHeader({
 }) {
   return (
     <header className="bg-background/80 sticky top-0 z-10 flex h-16 items-center justify-between border-b px-6 backdrop-blur">
-      <div className="md:hidden text-lg font-semibold tracking-tight">
-        CuidaVoz <span aria-hidden>💜</span>
-      </div>
+      <Logo className="md:hidden" />
       <div className="flex flex-1 items-center justify-end gap-4">
         <div className="hidden flex-col text-right leading-tight sm:flex">
           <span className="text-sm font-medium">{displayName}</span>

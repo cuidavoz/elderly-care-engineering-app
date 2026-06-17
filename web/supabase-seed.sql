@@ -93,9 +93,18 @@ begin
         jsonb_build_object('tipo','sueño','severidad','baja','evidencia','Sueño interrumpido')
       ),
       'resumen', 'Día tranquilo. Tomó la medicación. Dolor de cabeza leve y sueño algo interrumpido.',
+      -- Claims RESPALDADOS por la transcripción (pasaron el guard).
       'claims', jsonb_build_array(
-        jsonb_build_object('afirmacion','Tomó la medicación','campo','salud.medicacion_tomada','fuente_textual','tomé la pastilla de la presión')
+        jsonb_build_object('afirmacion','Tomó la medicación de la presión','campo','salud.medicacion_tomada','fuente_textual','tomé la pastilla de la presión'),
+        jsonb_build_object('afirmacion','Tuvo dolor de cabeza leve','campo','salud.dolor','fuente_textual','me dolía un poco la cabeza')
       ),
+      -- Claim que el modelo afirmó pero NO estaba en la transcripción (alucinación
+      -- filtrada por el guard). F8 lo muestra en rojo en la vista de evidencia.
+      'claims_descartados', jsonb_build_array(
+        jsonb_build_object('afirmacion','Caminó media hora a la tarde','campo','actividades','fuente_textual','salí a caminar media hora')
+      ),
+      -- Fidelidad (F7): 2 de 3 claims crudos estaban fundamentados → 0.67.
+      'faithfulness', jsonb_build_object('score', 0.6667, 'n_claims', 3, 'n_grounded', 2, 'metodo', 'substring'),
       'incompleto', false
     ),
     'Día tranquilo. Tomó la medicación. Dolor de cabeza leve y sueño algo interrumpido.',

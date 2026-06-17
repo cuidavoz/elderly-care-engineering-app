@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { FileText, ShieldCheck } from "lucide-react";
+import { Download, FileText, ShieldCheck } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getElder, getReports } from "@/lib/data/queries";
 import { ReportCard } from "../../_components/report-card";
@@ -51,6 +52,15 @@ export default async function ReportesPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <Button asChild variant="outline" size="sm">
+          <a href={`/api/elders/${elderId}/pdf`} download>
+            <Download />
+            Descargar PDF
+          </a>
+        </Button>
+      </div>
+
       {fidelidadPromedio !== null && (
         <Card size="sm">
           <CardContent className="flex items-center gap-3">

@@ -1,14 +1,13 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 
 export default function Home() {
   return (
     <main className="flex min-h-svh flex-col">
       <header className="flex items-center justify-between p-6">
-        <span className="text-xl font-semibold tracking-tight">
-          CuidaVoz <span aria-hidden>💜</span>
-        </span>
+        <Logo className="gap-2.5" markClassName="size-8" />
         <nav className="flex items-center gap-2">
           <Button asChild variant="ghost">
             <Link href="/login">Ingresar</Link>

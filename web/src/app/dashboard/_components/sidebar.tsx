@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Home, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/logo";
 import type { FamilyWithRole } from "@/lib/types";
 
 /**
@@ -26,11 +27,8 @@ export function DashboardSidebar({
 
   return (
     <aside className="bg-card hidden w-60 shrink-0 flex-col border-r md:flex">
-      <div className="flex h-16 items-center px-6 text-lg font-semibold tracking-tight">
-        CuidaVoz{" "}
-        <span aria-hidden className="ml-1">
-          💜
-        </span>
+      <div className="flex h-16 items-center px-6">
+        <Logo />
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">

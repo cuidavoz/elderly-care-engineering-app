@@ -20,8 +20,21 @@ Spec completo: `../docs/01_system_spec.md` · Plan: `../docs/02_project_plan.md`
 
 ## Estado
 
-Scaffolding. El flujo end-to-end corre con **stubs** (datos falsos) para poder
-desarrollar cada módulo en paralelo. Cada `TODO` marca lo que falta implementar.
+**M1→M4 implementados** (ver `../docs/03_implementation_plan.md`):
+
+- ASR real con `faster-whisper` (+ toggle `mock` para tests sin descargas).
+- Generación de reporte con LLM (Anthropic) detrás de interfaz desacoplada, con
+  guard de *faithfulness* (los `claims` deben citar substrings de la transcripción)
+  y un modo `mock` determinista para desarrollar/demostrar **sin gastar API**.
+- Alertas en dos capas (reglas + LLM liviano), persistencia en SQLite, RAG sobre
+  Chroma y Q&A del familiar.
+- Bot de Telegram (ingestión de voz) y dashboard Streamlit (timeline + alertas + chat).
+
+Suite de tests **100% offline** (`pytest -q` → 28 verdes, en modo mock). El camino
+real (Claude + Whisper) queda detrás de las mismas interfaces; se activa con una
+API key en `.env`. Ver la skill `cuidavoz-dev` para el flujo de trabajo.
+
+> Requiere **Python 3.11** (`py -3.11`). Versiones exactas en `requirements.lock.txt`.
 
 ## Estructura
 

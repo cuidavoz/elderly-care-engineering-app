@@ -1,0 +1,13 @@
+# Entorno local (binarios Windows; no van a la imagen Linux)
+.venv/
+# Datos y caches locales
+data/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+# Control de versiones / IDE / agentes
+.git/
+.claude/
+# Fixtures pesados de test (no se necesitan en runtime)
+tests/fixtures/
+install_log.txt

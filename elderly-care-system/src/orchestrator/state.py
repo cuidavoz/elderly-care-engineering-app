@@ -15,4 +15,5 @@ class GraphState(TypedDict, total=False):
     confianza: Optional[float]
     reporte: Optional[Reporte]
     respuesta: Optional[str]    # respuesta del Q&A
+    notificar: Optional[bool]   # True si hay alerta alta -> notificar al familiar
     error: Optional[str]

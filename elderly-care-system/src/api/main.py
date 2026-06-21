@@ -1,15 +1,49 @@
 """API FastAPI.  Responsable: Integrante A/E."""
 from __future__ import annotations
+import hmac
+import logging
 import os
 import shutil
 import tempfile
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from src.agents.digest import generar_digest
+from src.config import settings
 from src.orchestrator.graph import GRAPH
 from src.storage import get_report_store
 
+logger = logging.getLogger("cuidavoz.api")
+
 app = FastAPI(title="CuidaVoz API", version="0.1.0")
+
+
+def require_internal_token(
+    x_internal_token: str | None = Header(default=None),
+) -> None:
+    """Valida el token compartido server-to-server.
+
+    La API usa el service role (bypassa RLS), por lo que NO debe ser pública: el
+    único cliente legítimo es el web app, que firma cada request con el header
+    `X-Internal-Token`. Comparación en tiempo constante (hmac.compare_digest).
+
+    Rollout gradual: si `internal_api_token` está vacío, se permite el acceso
+    (con warning al arranque) para no romper despliegues que todavía no setearon
+    el env var. Setearlo en Render + Vercel cierra el agujero de cross-tenant.
+    """
+    expected = (settings.internal_api_token or "").strip()
+    if not expected:
+        return  # modo abierto (ver warning de arranque)
+    if not x_internal_token or not hmac.compare_digest(x_internal_token, expected):
+        raise HTTPException(status_code=401, detail="Token interno inválido o ausente.")
+
+
+if not (settings.internal_api_token or "").strip():
+    logger.warning(
+        "INTERNAL_API_TOKEN no está seteado: la API acepta requests sin "
+        "autenticar y usa el service role (bypassa RLS). Seteá INTERNAL_API_TOKEN "
+        "en el backend y CUIDAVOZ_INTERNAL_TOKEN (mismo valor) en el web app para "
+        "cerrar el acceso cross-tenant."
+    )
 
 # El web app (Next.js) corre en otro origen y le pega a esta API desde el browser.
 _origins = os.getenv(
@@ -31,7 +65,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/reportes")
+@app.post("/reportes", dependencies=[Depends(require_internal_token)])
 async def crear_reporte(elder_id: str = Form(...), audio: UploadFile = File(...)):
     """Recibe un audio, corre el pipeline y devuelve el reporte estructurado."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
@@ -44,7 +78,7 @@ async def crear_reporte(elder_id: str = Form(...), audio: UploadFile = File(...)
             "confianza": out.get("confianza"), "error": out.get("error")}
 
 
-@app.post("/consultas")
+@app.post("/consultas", dependencies=[Depends(require_internal_token)])
 def consultar(elder_id: str = Form(...), pregunta: str = Form(...)):
     """Q&A del familiar sobre el historial."""
     out = GRAPH.invoke({"tipo_evento": "consulta", "pregunta": pregunta,
@@ -52,7 +86,7 @@ def consultar(elder_id: str = Form(...), pregunta: str = Form(...)):
     return {"respuesta": out.get("respuesta")}
 
 
-@app.post("/digest")
+@app.post("/digest", dependencies=[Depends(require_internal_token)])
 def digest(elder_id: str = Form(...), dias: int = Form(7)):
     """Resumen semanal inteligente (tendencias + recomendaciones) para la familia.
 
@@ -74,7 +108,7 @@ def digest(elder_id: str = Form(...), dias: int = Form(7)):
         }
 
 
-@app.get("/reportes/{elder_id}")
+@app.get("/reportes/{elder_id}", dependencies=[Depends(require_internal_token)])
 def historial(elder_id: str, limite: int = 30):
     """Historial de reportes del adulto mayor, para el timeline del dashboard."""
     try:

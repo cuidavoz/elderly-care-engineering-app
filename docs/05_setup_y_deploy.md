@@ -20,7 +20,7 @@ de arquitectura y features ver `01_system_spec.md` y `04_architecture_v2.md`.
 Desde la raíz del repo:
 ```bash
 npx supabase start          # levanta Postgres+Auth+Studio (Docker). Imprime API URL + anon key.
-npx supabase db reset       # aplica las migraciones supabase/migrations/0001..0004
+npx supabase db reset       # aplica las migraciones supabase/migrations/0001..0005
 ```
 Datos de demo (opcional): pegá el contenido de `web/supabase-seed.sql` en **Supabase Studio → SQL Editor → Run**.
 Login demo: `demo@cuidavoz.test` / `cuidavoz123`.
@@ -69,9 +69,17 @@ npm run dev                    # http://localhost:3000
 - **Render free tier duerme** tras ~15 min de inactividad → la 1ª request (ej. Resumen) puede tardar 30–60s.
 
 ### Variables de entorno (los valores reales viven en los dashboards, NO en el repo)
-- **Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `CUIDAVOZ_API_BASE` (= URL de Render).
-- **Render:** `STORAGE_BACKEND=postgres`, `DATABASE_URL` (Supabase Cloud, Session pooler + `?sslmode=require`), `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL_REPORT`, `LLM_MODEL_LIGHT`, `ASR_PROVIDER=mock`.
-- Migraciones a la nube: `npx supabase link --project-ref obznbqvtsktwbeceitan` + `npx supabase db push`.
+- **Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `CUIDAVOZ_API_BASE` (= URL de Render), `CUIDAVOZ_INTERNAL_TOKEN` (ver seguridad ⬇).
+- **Render:** `STORAGE_BACKEND=postgres`, `DATABASE_URL` (Supabase Cloud, Session pooler + `?sslmode=require`), `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL_REPORT`, `LLM_MODEL_LIGHT`, `ASR_PROVIDER=mock`, `INTERNAL_API_TOKEN` (ver seguridad ⬇).
+- Migraciones a la nube: `npx supabase link --project-ref obznbqvtsktwbeceitan` + `npx supabase db push` (incluye `0005_security_hardening.sql`).
+
+### ⚠️ Seguridad: token interno API (OBLIGATORIO en prod)
+El backend Python usa el **service role** de Supabase (bypassa RLS), así que **no debe ser público**: cualquiera que conozca un `elder_id` podría leer/escribir datos de otra familia pegándole directo a Render. Para cerrarlo, la API valida un token compartido en el header `X-Internal-Token`:
+1. Generá un secreto fuerte: `openssl rand -hex 32`.
+2. Poné **el mismo valor** en `INTERNAL_API_TOKEN` (Render) y `CUIDAVOZ_INTERNAL_TOKEN` (Vercel).
+3. Redeploy ambos.
+
+> Mientras `INTERNAL_API_TOKEN` esté vacío, la API arranca en **modo abierto** (loguea un warning) para no romper despliegues existentes — solo aceptable en dev local. **Seteá el token antes de exponer la demo.**
 
 ## Trabajar en el repo
 - Repo del equipo: `FelipeViaggio/elderly-care-engineering-app` (privado). Pedí acceso como colaborador.

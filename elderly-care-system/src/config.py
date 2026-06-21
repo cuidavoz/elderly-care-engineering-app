@@ -22,5 +22,12 @@ class Settings(BaseSettings):
     storage_backend: str = "sqlite"  # "sqlite" | "postgres"
     database_url: str = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 
+    # Token compartido server-to-server: el web app (Next) lo manda en el header
+    # `X-Internal-Token` y la API lo valida. La API usa el service role (bypassa
+    # RLS), así que sin este token quedaría expuesta a cualquiera que conozca un
+    # elder_id. Si queda vacío, la API arranca en modo abierto (con warning) para
+    # no romper despliegues existentes; SETEARLO en prod cierra el acceso.
+    internal_api_token: str = ""
+
 
 settings = Settings()

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   QUERY_TIMEOUT_MS,
+  backendHeaders,
   fetchWithTimeout,
   getApiBase,
   userCanAccessElder,
@@ -50,7 +51,7 @@ export async function POST(
   try {
     backendRes = await fetchWithTimeout(
       `${getApiBase()}/digest`,
-      { method: "POST", body: outgoing },
+      { method: "POST", body: outgoing, headers: backendHeaders() },
       QUERY_TIMEOUT_MS
     );
   } catch (err) {

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   AUDIO_TIMEOUT_MS,
+  backendHeaders,
   fetchWithTimeout,
   getApiBase,
   userCanAccessElder,
@@ -59,7 +60,7 @@ export async function POST(
   try {
     backendRes = await fetchWithTimeout(
       `${getApiBase()}/reportes`,
-      { method: "POST", body: outgoing },
+      { method: "POST", body: outgoing, headers: backendHeaders() },
       AUDIO_TIMEOUT_MS
     );
   } catch (err) {

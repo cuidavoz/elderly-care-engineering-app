@@ -18,6 +18,19 @@ export function getApiBase(): string {
 }
 
 /**
+ * Headers de autenticación server-to-server hacia el backend Python. El backend
+ * usa el service role (bypassa RLS), así que NO debe ser público: firmamos cada
+ * request con un token compartido (`X-Internal-Token`). Se setea vía la env
+ * `CUIDAVOZ_INTERNAL_TOKEN` (en Vercel) y debe coincidir con `INTERNAL_API_TOKEN`
+ * del backend (en Render). Si no está seteado, no mandamos header (el backend en
+ * ese caso queda en modo abierto; ver `require_internal_token` en la API).
+ */
+export function backendHeaders(): Record<string, string> {
+  const token = process.env.CUIDAVOZ_INTERNAL_TOKEN?.trim();
+  return token ? { "X-Internal-Token": token } : {};
+}
+
+/**
  * El backend puede tardar varios segundos (transcripción + LLM). Damos un
  * margen amplio para audio; las consultas Q&A usan un timeout más corto.
  */

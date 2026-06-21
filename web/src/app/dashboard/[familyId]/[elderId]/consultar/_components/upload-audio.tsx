@@ -23,8 +23,19 @@ type ReporteResponse = {
   error?: string | null;
 };
 
-const ACCEPT = ".ogg,.mp3,.wav,.m4a,audio/*";
+const ACCEPT = ".ogg,.mp3,.wav,.m4a,.webm,audio/*";
 const ACCEPT_LABEL = ".ogg, .mp3, .wav o .m4a";
+/** Extensiones permitidas (fallback cuando el navegador no informa `file.type`). */
+const ALLOWED_EXTENSIONS = [".ogg", ".mp3", ".m4a", ".wav", ".webm"];
+/** Tamaño máximo del audio: 25 MB. */
+const MAX_SIZE_BYTES = 25 * 1024 * 1024;
+
+/** Valida que el archivo sea audio por MIME type o, si falta, por extensión. */
+function isAudioFile(file: File): boolean {
+  if (file.type.startsWith("audio/")) return true;
+  const name = file.name.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
 
 /**
  * Subir audio del adulto mayor → genera un reporte. Envía el archivo al route
@@ -42,6 +53,16 @@ export function UploadAudio({ elderId }: { elderId: string }) {
   function onSubmit() {
     if (!file) {
       toast.error(`Elegí un archivo de audio (${ACCEPT_LABEL}).`);
+      return;
+    }
+
+    if (!isAudioFile(file)) {
+      toast.error(`El archivo no parece ser audio. Usá ${ACCEPT_LABEL}.`);
+      return;
+    }
+
+    if (file.size > MAX_SIZE_BYTES) {
+      toast.error("El audio es demasiado grande (máximo 25 MB).");
       return;
     }
 
@@ -95,8 +116,9 @@ export function UploadAudio({ elderId }: { elderId: string }) {
         </div>
         <CardDescription>
           Subí un audio del adulto mayor para generar un reporte. El
-          procesamiento (audio → reporte) lo hace el sistema de CuidaVoz y puede
-          tardar unos segundos.
+          procesamiento (audio → reporte) lo hace el sistema de CuidaVoz. La
+          primera vez del día puede tardar hasta ~1 minuto mientras el servidor
+          se enciende; después es cuestión de segundos.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

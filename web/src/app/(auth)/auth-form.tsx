@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
@@ -57,8 +57,15 @@ export function AuthForm({ mode, action }: AuthFormProps) {
   const [state, formAction] = useActionState<AuthState, FormData>(action, null);
   const t = copy[mode];
 
+  // Cada submit devuelve un objeto `state` nuevo; guardamos la última referencia
+  // ya notificada para no duplicar el toast en re-renders que no cambian el
+  // estado (cada error nuevo, incluso con el mismo texto, es un objeto distinto
+  // y se notifica una sola vez).
+  const lastNotified = useRef<AuthState>(null);
+
   useEffect(() => {
-    if (state?.error) {
+    if (state?.error && state !== lastNotified.current) {
+      lastNotified.current = state;
       toast.error(state.error);
     }
   }, [state]);

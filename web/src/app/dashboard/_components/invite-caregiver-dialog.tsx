@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,6 +21,23 @@ import { cn } from "@/lib/utils";
 import { createInvite } from "@/lib/data/actions";
 import { CopyInviteLink } from "./copy-invite-link";
 
+// El origin no cambia durante la vida de la página: no hace falta suscribirse.
+const subscribe = () => () => {};
+
+/**
+ * Lee `window.location.origin` de forma segura para SSR. En el server (snapshot
+ * de servidor) devuelve "" para evitar mismatch de hidratación; en el cliente
+ * devuelve el origin real. Patrón recomendado para valores client-only sin
+ * llamar setState dentro de un efecto.
+ */
+function useOrigin(): string {
+  return useSyncExternalStore(
+    subscribe,
+    () => window.location.origin,
+    () => ""
+  );
+}
+
 function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <Button type="submit" disabled={pending}>
@@ -39,6 +56,9 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [token, setToken] = useState<string | null>(null);
+  // Origin del cliente para mostrar el link absoluto sin romper la hidratación.
+  // En el server renderiza "" y al hidratar pasa a la URL completa.
+  const origin = useOrigin();
 
   function onOpenChange(next: boolean) {
     setOpen(next);
@@ -86,7 +106,7 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
               <Input
                 id="invite-link"
                 readOnly
-                value={`/dashboard/invitacion/${token}`}
+                value={`${origin}/dashboard/invitacion/${token}`}
                 onFocus={(e) => e.currentTarget.select()}
               />
               <p className="text-muted-foreground text-xs">

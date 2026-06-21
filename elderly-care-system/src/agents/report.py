@@ -210,9 +210,21 @@ def run(state: GraphState) -> GraphState:
     transcripcion = state.get("transcripcion") or ""
 
     llm = LLMClient()  # modelo grande (por default) para el reporte
-    raw = llm.complete(SYSTEM, transcripcion, json_mode=True)
-
-    reporte = _parsear_reporte(raw, transcripcion)
+    # Robustez (BUG 2): la generación del reporte puede fallar (timeout/red/error
+    # del LLM tras agotar reintentos, o una respuesta sin texto). Sin manejo, la
+    # excepción aborta TODO el grafo. La envolvemos y degradamos a un reporte
+    # mínimo/incompleto coherente, seteando `state["error"]`, en vez de propagar.
+    try:
+        raw = llm.complete(SYSTEM, transcripcion, json_mode=True)
+        reporte = _parsear_reporte(raw, transcripcion)
+    except Exception:
+        state["error"] = "reporte_no_generado"
+        state["reporte"] = Reporte(
+            fecha=date.today(),
+            incompleto=True,
+            resumen="No se pudo generar el reporte en este momento; se reintentará.",
+        )
+        return state
     # Medimos la fidelidad sobre los claims CRUDOS del LLM, ANTES del guard:
     # después de filtrar daría 1.0 trivial. Recién después descartamos los no
     # fundamentados de `reporte.claims`.

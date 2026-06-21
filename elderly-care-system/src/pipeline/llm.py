@@ -18,14 +18,45 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 from src.config import settings
+
+# Robustez de la llamada real a la API (BUG 1): un timeout acotado evita que un
+# cuelgue de red bloquee el pipeline para siempre, y unos pocos reintentos con
+# backoff exponencial absorben fallos transitorios (timeouts, 429, 5xx, errores
+# de conexión) sin propagar la excepción al grafo.
+LLM_TIMEOUT_S = 60.0          # segundos por intento
+LLM_MAX_INTENTOS = 3          # 1 intento + 2 reintentos
+LLM_BACKOFF_BASE_S = 1.0      # sleep = base * 2**(intento-1) -> 1s, 2s, ...
 
 
 def _dividir_oraciones(texto: str) -> list[str]:
     """Parte el texto en oraciones (heurística simple, suficiente para el mock)."""
     partes = re.split(r"(?<=[.!?])\s+", (texto or "").strip())
     return [p.strip() for p in partes if p.strip()]
+
+
+def _extraer_texto(content) -> str:
+    """Extrae de forma SEGURA el primer bloque de texto de `msg.content` (BUG 1).
+
+    La respuesta de Anthropic es una lista de bloques que NO siempre empieza por
+    uno de tipo `text`: puede venir vacía, o el primer bloque puede ser de otro
+    tipo (p. ej. `tool_use`, o un refusal). Acceder a ciegas a `content[0].text`
+    revienta con IndexError/AttributeError. Acá recorremos los bloques y nos
+    quedamos con el primero que sea de tipo `text` (o que exponga `.text`); si no
+    hay ninguno, lanzamos un error claro en vez de un crash opaco.
+    """
+    for bloque in content or []:
+        # Bloque tipado del SDK: tiene `.type == "text"` y `.text`.
+        tipo = getattr(bloque, "type", None)
+        texto = getattr(bloque, "text", None)
+        if tipo == "text" and isinstance(texto, str):
+            return texto
+        # Tolerancia: un bloque con `.text` string pero sin `type` declarado.
+        if tipo is None and isinstance(texto, str):
+            return texto
+    raise RuntimeError("respuesta del LLM sin texto")
 
 
 class LLMClient:
@@ -63,13 +94,44 @@ class LLMClient:
             system = system + "\n\nRespondé EXCLUSIVAMENTE con un objeto JSON válido."
             messages.append({"role": "assistant", "content": "{"})
 
-        msg = client.messages.create(
-            model=self.model,
-            max_tokens=1500,
-            system=system,
-            messages=messages,
-        )
-        texto = msg.content[0].text
+        # Tipos de error del SDK que vale la pena reintentar (timeout/red/429/5xx).
+        # Los importamos de forma defensiva: si una versión del SDK no expone
+        # alguno, caemos a `Exception` para no romper el import.
+        reintentables = tuple(
+            t for t in (
+                getattr(anthropic, "APITimeoutError", None),
+                getattr(anthropic, "APIConnectionError", None),
+                getattr(anthropic, "RateLimitError", None),
+                getattr(anthropic, "InternalServerError", None),
+                getattr(anthropic, "APIStatusError", None),
+            )
+            if isinstance(t, type)
+        ) or (Exception,)
+
+        ultimo_error: Exception | None = None
+        for intento in range(1, LLM_MAX_INTENTOS + 1):
+            try:
+                msg = client.messages.create(
+                    model=self.model,
+                    max_tokens=1500,
+                    system=system,
+                    messages=messages,
+                    timeout=LLM_TIMEOUT_S,
+                )
+                break
+            except reintentables as e:
+                ultimo_error = e
+                if intento >= LLM_MAX_INTENTOS:
+                    # Agotamos los reintentos: re-lanzamos para que el caller
+                    # (report.run) degrade de forma controlada.
+                    raise
+                # Backoff exponencial: 1s, 2s, ... antes del próximo intento.
+                time.sleep(LLM_BACKOFF_BASE_S * (2 ** (intento - 1)))
+        else:  # pragma: no cover - el break/raise cubren todas las salidas
+            raise ultimo_error if ultimo_error else RuntimeError("LLM sin respuesta")
+
+        # Acceso seguro al contenido: nunca `msg.content[0].text` a ciegas.
+        texto = _extraer_texto(msg.content)
         if json_mode:
             # Reponemos el '{' del prefill que Claude no repite.
             texto = "{" + texto

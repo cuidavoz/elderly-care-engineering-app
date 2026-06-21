@@ -107,7 +107,11 @@ def test_alerta_regla_dispara_alta():
     assert any(a.severidad == Severidad.alta for a in alertas)
     evidencias = {a.evidencia for a in alertas}
     assert "mareo" in evidencias
-    assert "pecho" in evidencias
+    # Antes la evidencia era el substring crudo "pecho" (que también matcheaba
+    # falsos positivos como "pechuga"). Ahora el matching es por límite de
+    # palabra sobre el texto normalizado, así que la evidencia es la frase de
+    # riesgo realmente hallada: "dolor en el pecho".
+    assert "dolor en el pecho" in evidencias
 
 
 def test_alerta_pase_llm_no_rompe_en_mock():

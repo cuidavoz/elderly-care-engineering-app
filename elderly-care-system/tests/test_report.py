@@ -15,6 +15,7 @@ from src.agents.report import (
     _filtrar_claims_no_fieles,
     _parsear_reporte,
 )
+from src.pipeline.llm import _extraer_texto
 from src.schemas import Claim, Reporte
 
 TRANSCRIPCION = (
@@ -287,3 +288,78 @@ def test_camino_incompleto_no_rompe_claims_descartados():
     assert rep.incompleto is True
     assert rep.claims == []
     assert rep.claims_descartados == []
+
+
+# --------------------------------------------------------------------------- #
+# Robustez (BUG 2): si la generación del LLM falla dentro de report.run, el nodo
+# NO debe propagar la excepción (eso abortaría el grafo): degrada a un Reporte
+# incompleto coherente y setea state["error"].
+# --------------------------------------------------------------------------- #
+
+
+def test_run_degrada_si_el_llm_lanza(monkeypatch):
+    """Si `complete` lanza una excepción, `run` no propaga: devuelve un Reporte
+    incompleto y un `error` seteado, en vez de romper el pipeline."""
+
+    def _boom(self, system, user, json_mode=False):
+        raise RuntimeError("timeout/red simulado del LLM")
+
+    monkeypatch.setattr(report.LLMClient, "complete", _boom)
+
+    # Imita el patrón del resto del archivo: arma el state y llama a run().
+    out = report.run({"transcripcion": TRANSCRIPCION})
+
+    rep = out["reporte"]
+    assert isinstance(rep, Reporte)
+    assert rep.incompleto is True          # degradado, no inventado
+    assert rep.claims == []                # campos vacíos válidos según el schema
+    assert rep.claims_descartados == []
+    assert out.get("error")                # error seteado, no None/""
+
+
+# --------------------------------------------------------------------------- #
+# Robustez (BUG 1): acceso SEGURO al contenido de la respuesta del LLM. El
+# helper `_extraer_texto` recorre los bloques y toma el primero de tipo texto;
+# salta los que no lo son y, si no hay ninguno, lanza un error claro.
+# --------------------------------------------------------------------------- #
+
+
+class _BloqueFalso:
+    """Imita un bloque de `msg.content` del SDK de Anthropic."""
+
+    def __init__(self, type=None, text=None):
+        # Solo seteamos los atributos presentes, para poder simular bloques
+        # SIN `.text` (p. ej. tool_use) y bloques sin `.type`.
+        if type is not None:
+            self.type = type
+        if text is not None:
+            self.text = text
+
+
+def test_extraer_texto_toma_primer_bloque_de_texto():
+    """Un bloque previo sin `.text` (p. ej. tool_use) se saltea; se devuelve el
+    primer bloque de tipo texto."""
+    content = [
+        _BloqueFalso(type="tool_use"),                 # sin .text -> se saltea
+        _BloqueFalso(type="text", text="contenido real"),
+        _BloqueFalso(type="text", text="ignorado"),
+    ]
+    assert _extraer_texto(content) == "contenido real"
+
+
+def test_extraer_texto_lista_vacia_lanza_error_claro():
+    """Lista vacía => error claro, no IndexError opaco."""
+    import pytest
+
+    with pytest.raises(RuntimeError, match="sin texto"):
+        _extraer_texto([])
+
+
+def test_extraer_texto_sin_bloque_de_texto_lanza_error_claro():
+    """Si ningún bloque es de tipo texto ni tiene `.text`, lanza error claro en
+    vez de reventar con AttributeError."""
+    import pytest
+
+    content = [_BloqueFalso(type="tool_use"), _BloqueFalso(type="image")]
+    with pytest.raises(RuntimeError, match="sin texto"):
+        _extraer_texto(content)

@@ -34,7 +34,7 @@ export function backendHeaders(): Record<string, string> {
  * El backend puede tardar varios segundos (transcripción + LLM). Damos un
  * margen amplio para audio; las consultas Q&A usan un timeout más corto.
  */
-export const AUDIO_TIMEOUT_MS = 120_000;
+export const AUDIO_TIMEOUT_MS = 420_000;
 export const QUERY_TIMEOUT_MS = 60_000;
 
 /**

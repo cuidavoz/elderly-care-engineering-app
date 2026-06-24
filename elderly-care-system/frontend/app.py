@@ -1,4 +1,4 @@
-no"""Dashboard del familiar (Streamlit).  Responsable: Integrante E.
+"""Dashboard del familiar (Streamlit).  Responsable: Integrante E.
 
 Tres pestañas:
   - Reporte de hoy: subir audio -> POST /reportes -> alertas + desglose legible.

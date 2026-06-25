@@ -7,6 +7,7 @@ import type {
   FamilyRole,
   FamilyWithRole,
   Invite,
+  InvitePreview,
   Report,
 } from "@/lib/types";
 
@@ -224,6 +225,32 @@ export async function getInvites(familyId: string): Promise<Invite[]> {
     throw new Error(`No se pudieron cargar las invitaciones: ${error.message}`);
   }
   return (data ?? []) as unknown as Invite[];
+}
+
+/**
+ * Detalle de una invitación a partir del token, para la pantalla de aceptación.
+ * Va por el RPC `get_invite_preview` (security-definer) porque el invitado todavía
+ * no es miembro y la RLS de `invites` no le dejaría leer la fila. Devuelve null si
+ * el token no existe.
+ */
+export async function getInvitePreview(
+  token: string
+): Promise<InvitePreview | null> {
+  const clean = String(token ?? "").trim();
+  if (!clean) return null;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_invite_preview", {
+    _token: clean,
+  });
+
+  if (error) {
+    throw new Error(`No se pudo cargar la invitación: ${error.message}`);
+  }
+
+  // El RPC devuelve una tabla; 0 filas = token inexistente.
+  const rows = (data ?? []) as unknown as InvitePreview[];
+  return rows[0] ?? null;
 }
 
 /** Cantidad de alertas pendientes de un adulto mayor (para el badge del tab). */

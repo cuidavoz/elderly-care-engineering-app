@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { sendInviteEmail } from "@/lib/email";
 import type { AlertEstado, FamilyRole } from "@/lib/types";
+
+/** Base URL del sitio para armar el link de aceptación en mails (server-side). */
+function getSiteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
 
 /**
  * Server Actions de mutación para CuidaVoz.
@@ -114,9 +122,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * devolvemos un mensaje amable en vez del error crudo de Postgres.
  */
 export async function createInvite(
-  _prevState: ActionResult<{ token: string }> | null,
+  _prevState: ActionResult<{ token: string; emailed: boolean }> | null,
   formData: FormData
-): Promise<ActionResult<{ token: string }>> {
+): Promise<ActionResult<{ token: string; emailed: boolean }>> {
   const familyId = String(formData.get("familyId") ?? "").trim();
   const email = String(formData.get("email") ?? "")
     .trim()
@@ -170,8 +178,32 @@ export async function createInvite(
     };
   }
 
+  const token = data.token as string;
+
+  // Mandamos el mail de invitación (best-effort: si SMTP no está configurado o
+  // falla, no rompemos — el link queda copiable en el diálogo igual).
+  const { data: family } = await supabase
+    .from("families")
+    .select("nombre")
+    .eq("id", familyId)
+    .maybeSingle();
+
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const inviterName =
+    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+    user.email ||
+    "Alguien";
+
+  const emailed = await sendInviteEmail({
+    to: email,
+    familyName: family?.nombre ?? "tu familia",
+    inviterName,
+    role: rol,
+    acceptUrl: `${getSiteUrl()}/dashboard/invitacion/${token}`,
+  });
+
   revalidatePath(`/dashboard/${familyId}`, "layout");
-  return { ok: true, data: { token: data.token as string } };
+  return { ok: true, data: { token, emailed } };
 }
 
 /**
@@ -241,6 +273,32 @@ export async function acceptInvite(
 
   revalidatePath("/dashboard", "layout");
   return { ok: true, data: { familyId: String(data) } };
+}
+
+/**
+ * Rechaza una invitación a partir del token (la marca como 'revocada'). El RPC
+ * `reject_invite` valida que el token esté vigente y que el email coincida con la
+ * cuenta logueada.
+ */
+export async function rejectInvite(token: string): Promise<ActionResult> {
+  const cleanToken = String(token ?? "").trim();
+  if (!cleanToken) {
+    return { ok: false, error: "El link de invitación no es válido." };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("reject_invite", { _token: cleanToken });
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudo rechazar la invitación: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, data: undefined };
 }
 
 const VALID_ESTADOS: AlertEstado[] = ["pendiente", "vista", "resuelta"];

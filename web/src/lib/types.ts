@@ -33,6 +33,24 @@ export type Invite = {
 };
 
 /**
+ * Detalle de una invitación para la pantalla de aceptación (RPC
+ * `get_invite_preview`). Permite mostrar "X te invita a Y como Z" sin aceptar, y
+ * los flags dejan a la UI decidir qué mostrar.
+ */
+export type InvitePreview = {
+  family_id: string;
+  family_nombre: string;
+  inviter_nombre: string | null;
+  inviter_email: string | null;
+  rol: FamilyRole;
+  invite_email: string;
+  status: InviteStatus;
+  is_expired: boolean;
+  email_matches: boolean;
+  already_member: boolean;
+};
+
+/**
  * Miembro de una familia con su perfil. `nombre`/`email` pueden venir null si el
  * perfil asociado todavía no tiene esos datos.
  */

@@ -12,13 +12,19 @@ familia recibe un reporte estructurado, alertas y un chat de consulta sobre el h
 ## Contenido
 
 ```
-docs/01_system_spec.md      ← arquitectura + especificación del producto
-docs/02_project_plan.md     ← milestones, división de trabajo, cronograma
-elderly-care-system/        ← scaffolding del repo (corre end-to-end con stubs)
+docs/01_system_spec.md         ← arquitectura + especificación del producto
+docs/02_project_plan.md        ← milestones, división de trabajo, cronograma
+docs/03_implementation_plan.md ← plan de implementación M1→M4
+docs/04_architecture_v2.md     ← ADR: de MVP a producto multi-tenant (web + Supabase)
+docs/05_setup_y_deploy.md      ← correr en local + cómo está deployado en la nube
+docs/06_onboarding.md          ← ⭐ arrancá acá: clonar, levantar local y subir trabajo
+elderly-care-system/           ← backend Python (FastAPI · LangGraph · faster-whisper · LLM)
+web/                           ← web app Next.js (cuidadores) + Supabase
+supabase/                      ← migraciones, config y seed
 ```
 
 ## Por dónde empezar
 
-1. Leer `docs/01_system_spec.md` (define el contrato: el esquema del reporte).
-2. Repartir módulos según `docs/02_project_plan.md`.
-3. Levantar el esqueleto: `cd elderly-care-system && make test`.
+- **¿Nuevo en el equipo y querés levantarlo en tu compu?** → empezá por **[`docs/06_onboarding.md`](docs/06_onboarding.md)**.
+- Arquitectura y contrato del reporte → `docs/01_system_spec.md` y `docs/04_architecture_v2.md`.
+- Setup detallado + deploy en la nube → `docs/05_setup_y_deploy.md`.

@@ -20,13 +20,25 @@ import type {
 /**
  * Familias del usuario, con su rol. Hacemos el join desde `family_members`
  * (del que el usuario es parte) hacia `families`, así obtenemos el rol.
+ *
+ * IMPORTANTE: filtramos por `profile_id = user.id`. La RLS de `family_members`
+ * deja ver a TODOS los miembros de las familias propias (lo necesita la pantalla
+ * de cuidadores), así que sin este filtro la query devolvería una fila por cada
+ * miembro de cada familia → la misma familia aparecería repetida, una vez por
+ * miembro/rol. Filtrando por uno mismo, obtenemos exactamente una fila por familia.
  */
 export async function getFamilies(): Promise<FamilyWithRole[]> {
   const supabase = await createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("family_members")
     .select("rol, families(id, nombre, created_by, created_at)")
+    .eq("profile_id", user.id)
     .order("created_at", { referencedTable: "families", ascending: true });
 
   if (error) {

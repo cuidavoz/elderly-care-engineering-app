@@ -1,2 +1,11 @@
 # macOS
 .DS_Store
+
+# Secretos / variables de entorno — NUNCA commitear valores reales.
+# Las plantillas .env.example sí se versionan (no tienen valores reales).
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example

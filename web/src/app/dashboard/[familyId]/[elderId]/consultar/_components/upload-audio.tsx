@@ -79,6 +79,23 @@ export function UploadAudio({ elderId }: { elderId: string }) {
         });
         data = (await res.json().catch(() => ({}))) as ReporteResponse;
 
+        // 504 = el proxy cortó por timeout, pero el backend (lento en el free
+        // tier) sigue procesando y va a PERSISTIR el reporte igual. No es un
+        // error real, y NO hay que reintentar (generaría un duplicado): avisamos
+        // que se está generando y refrescamos para que aparezca en Reportes.
+        if (res.status === 504) {
+          toast.info(
+            "El reporte está tardando más de lo normal, pero se está generando. " +
+              "Va a aparecer en Reportes y Tendencias en unos segundos — no lo subas de nuevo.",
+            { duration: 9000 }
+          );
+          setFile(null);
+          if (inputRef.current) inputRef.current.value = "";
+          // Le damos tiempo al backend a terminar y persistir, y refrescamos.
+          setTimeout(() => router.refresh(), 12_000);
+          return;
+        }
+
         if (!res.ok) {
           toast.error(data.error ?? "No se pudo procesar el audio.");
           setResult(data);

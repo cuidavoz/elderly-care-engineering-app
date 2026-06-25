@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // @react-pdf/renderer no se lleva bien con el bundler: lo dejamos como módulo
-  // externo del lado del servidor para que Next no intente empaquetarlo.
-  serverExternalPackages: ["@react-pdf/renderer"],
+  // Módulos que no se llevan bien con el bundler: los dejamos como externos del
+  // lado del servidor para que Next no intente empaquetarlos.
+  //  - @react-pdf/renderer: generación de PDFs.
+  //  - nodemailer: envío de mails por SMTP (usa APIs de Node).
+  serverExternalPackages: ["@react-pdf/renderer", "nodemailer"],
 };
 
 export default nextConfig;

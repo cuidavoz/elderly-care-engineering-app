@@ -56,6 +56,7 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [token, setToken] = useState<string | null>(null);
+  const [emailed, setEmailed] = useState(false);
   // Origin del cliente para mostrar el link absoluto sin romper la hidratación.
   // En el server renderiza "" y al hidratar pasa a la URL completa.
   const origin = useOrigin();
@@ -65,6 +66,7 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
     // Al cerrar, reseteamos el link generado para la próxima invitación.
     if (!next) {
       setToken(null);
+      setEmailed(false);
     }
   }
 
@@ -73,7 +75,10 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
       const result = await createInvite(null, formData);
       if (result.ok) {
         setToken(result.data.token);
-        toast.success("Invitación creada");
+        setEmailed(result.data.emailed);
+        toast.success(
+          result.data.emailed ? "Invitación enviada por mail" : "Invitación creada"
+        );
       } else {
         toast.error(result.error);
       }
@@ -110,7 +115,9 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
                 onFocus={(e) => e.currentTarget.select()}
               />
               <p className="text-muted-foreground text-xs">
-                Copiá el link y compartilo con la persona que querés sumar.
+                {emailed
+                  ? "Le mandamos un mail con este link. Igual podés copiarlo y compartirlo vos."
+                  : "Copiá el link y compartilo con la persona que querés sumar."}
               </p>
             </div>
             <DialogFooter>

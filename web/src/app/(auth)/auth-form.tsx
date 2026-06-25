@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { MailCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,10 @@ type Mode = "login" | "signup";
 type AuthFormProps = {
   mode: Mode;
   action: (state: AuthState, formData: FormData) => Promise<AuthState>;
+  /** Destino al que volver tras autenticarse (p. ej. una invitación). */
+  redirectedFrom?: string;
+  /** Aviso a mostrar como toast al montar (p. ej. error de confirmación). */
+  notice?: string;
 };
 
 const copy = {
@@ -53,7 +58,18 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function AuthForm({ mode, action }: AuthFormProps) {
+/** Agrega `?redirectedFrom=...` a un href interno, si corresponde. */
+function withRedirect(href: string, redirectedFrom?: string): string {
+  if (!redirectedFrom) return href;
+  return `${href}?redirectedFrom=${encodeURIComponent(redirectedFrom)}`;
+}
+
+export function AuthForm({
+  mode,
+  action,
+  redirectedFrom,
+  notice,
+}: AuthFormProps) {
   const [state, formAction] = useActionState<AuthState, FormData>(action, null);
   const t = copy[mode];
 
@@ -64,11 +80,55 @@ export function AuthForm({ mode, action }: AuthFormProps) {
   const lastNotified = useRef<AuthState>(null);
 
   useEffect(() => {
-    if (state?.error && state !== lastNotified.current) {
+    if (state && "error" in state && state !== lastNotified.current) {
       lastNotified.current = state;
       toast.error(state.error);
     }
   }, [state]);
+
+  // Aviso de query string (p. ej. el link de confirmación falló/venció).
+  const noticeShown = useRef(false);
+  useEffect(() => {
+    if (notice && !noticeShown.current) {
+      noticeShown.current = true;
+      if (notice === "confirm-error") {
+        toast.error(
+          "No pudimos confirmar tu correo (el link venció o ya se usó). Probá ingresar."
+        );
+      }
+    }
+  }, [notice]);
+
+  // Signup con confirmación pendiente: pantalla "revisá tu correo".
+  if (state && "status" in state && state.status === "check-email") {
+    return (
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <div className="bg-accent text-primary mb-2 flex size-12 items-center justify-center rounded-2xl">
+            <MailCheck className="size-6" />
+          </div>
+          <CardTitle className="text-2xl">Revisá tu correo</CardTitle>
+          <CardDescription>
+            Te enviamos un mail a <strong>{state.email}</strong> para confirmar
+            tu cuenta. Abrí el link y vas a volver automáticamente para terminar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-muted-foreground text-sm">
+          <p>
+            ¿No te llegó? Revisá spam, o esperá un minuto y fijate de nuevo. El
+            link vence en una hora.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button asChild variant="outline" className="w-full">
+            <Link href={withRedirect("/login", redirectedFrom)}>
+              Volver a ingresar
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-sm">
@@ -77,6 +137,10 @@ export function AuthForm({ mode, action }: AuthFormProps) {
         <CardDescription>{t.description}</CardDescription>
       </CardHeader>
       <form action={formAction}>
+        {/* Destino post-auth (la invitación, si el usuario vino de un link). */}
+        {redirectedFrom && (
+          <input type="hidden" name="redirectedFrom" value={redirectedFrom} />
+        )}
         <CardContent className="flex flex-col gap-4">
           {mode === "signup" && (
             <div className="flex flex-col gap-2">
@@ -120,7 +184,7 @@ export function AuthForm({ mode, action }: AuthFormProps) {
           <p className="text-muted-foreground text-center text-sm">
             {t.footerText}{" "}
             <Link
-              href={t.footerLink}
+              href={withRedirect(t.footerLink, redirectedFrom)}
               className="text-primary font-medium hover:underline"
             >
               {t.footerCta}

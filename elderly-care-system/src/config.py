@@ -7,11 +7,17 @@ class Settings(BaseSettings):
 
     llm_provider: str = "anthropic"
     anthropic_api_key: str = ""
-    llm_model_report: str = "claude-sonnet-4-6"
+    # Reporte con haiku (no sonnet) a propósito: es más rápido y mantiene el
+    # total (transcripción + reporte) dentro del timeout de 60s de Vercel Hobby.
+    # Sonnet daría mejor fidelidad pero corre riesgo de pasarse del límite.
+    llm_model_report: str = "claude-haiku-4-5-20251001"
     llm_model_light: str = "claude-haiku-4-5-20251001"
 
     asr_provider: str = "faster_whisper"   # "faster_whisper" | "mock"
-    whisper_model: str = "base"
+    # "tiny" es el que pre-descarga el Dockerfile y el único que entra en los
+    # 512MB del free tier de Render. NO subir a "base" sin más RAM: OOM al
+    # transcribir. Override con WHISPER_MODEL solo si el host tiene memoria.
+    whisper_model: str = "tiny"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
 

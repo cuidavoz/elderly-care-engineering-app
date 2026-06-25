@@ -14,7 +14,25 @@ from src.storage import get_report_store
 
 logger = logging.getLogger("cuidavoz.api")
 
-app = FastAPI(title="CuidaVoz API", version="0.1.0")
+
+def _precargar_whisper() -> None:
+    """Pre-carga el modelo Whisper en memoria al arrancar el servidor.
+
+    Sin esto, el modelo se carga lazy en el primer POST /reportes, agregando
+    10-15s al primer request y a cualquier request post cold-start. Pre-cargarlo
+    aquí garantiza que el pipeline de audio entre dentro de la ventana de 58s
+    de Vercel Hobby desde el primer request.
+    """
+    if settings.asr_provider == "faster_whisper":
+        from src.pipeline.asr import _get_modelo
+        try:
+            _get_modelo()
+            logger.info("Modelo Whisper pre-cargado OK (%s)", settings.whisper_model)
+        except Exception:
+            logger.warning("No se pudo pre-cargar Whisper; se cargará en el primer request.")
+
+
+app = FastAPI(title="CuidaVoz API", version="0.1.0", on_startup=[_precargar_whisper])
 
 
 def require_internal_token(

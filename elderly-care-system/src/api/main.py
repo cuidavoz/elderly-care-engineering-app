@@ -66,8 +66,15 @@ def health():
 
 
 @app.post("/reportes", dependencies=[Depends(require_internal_token)])
-async def crear_reporte(elder_id: str = Form(...), audio: UploadFile = File(...)):
-    """Recibe un audio, corre el pipeline y devuelve el reporte estructurado."""
+def crear_reporte(elder_id: str = Form(...), audio: UploadFile = File(...)):
+    """Recibe un audio, corre el pipeline y devuelve el reporte estructurado.
+
+    Sync def A PROPÓSITO (no async): el pipeline (Whisper + LLM) es CPU-bound y
+    bloqueante, y no usa await. FastAPI corre los `def` en un threadpool, así el
+    event loop queda libre para responder /health. Si fuera `async def`, bloquearía
+    el loop durante toda la transcripción → el health check de Render (5s) falla →
+    Render reinicia la instancia y mata el request del audio a mitad (→ timeout 55s
+    en el web). Mantener como `def`."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp:
         shutil.copyfileobj(audio.file, tmp)
         path = tmp.name

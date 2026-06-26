@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     llm_model_report: str = "claude-haiku-4-5-20251001"
     llm_model_light: str = "claude-haiku-4-5-20251001"
 
-    asr_provider: str = "faster_whisper"   # "faster_whisper" | "mock"
+    groq_api_key: str = ""
+
+    asr_provider: str = "faster_whisper"   # "faster_whisper" | "groq" | "mock"
     # "tiny" es el que pre-descarga el Dockerfile y el único que entra en los
     # 512MB del free tier de Render. NO subir a "base" sin más RAM: OOM al
     # transcribir. Override con WHISPER_MODEL solo si el host tiene memoria.

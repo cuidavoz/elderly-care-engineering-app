@@ -48,7 +48,7 @@ export function AcceptInviteCard({
       const result = await acceptInvite(token);
       if (result.ok) {
         toast.success(`Te uniste a ${familyNombre}`);
-        router.push(`/dashboard/${result.data.familyId}`);
+        router.push(rol === "adulto_mayor" ? "/elder" : `/dashboard/${result.data.familyId}`);
         router.refresh();
       } else {
         toast.error(result.error);
@@ -90,7 +90,9 @@ export function AcceptInviteCard({
             <div>
               <p className="font-medium">{familyNombre}</p>
               <p className="text-muted-foreground text-sm">
-                Vas a entrar como cuidador/a de esta familia.
+                {rol === "adulto_mayor"
+                  ? "Vas a acceder a tu vista personal."
+                  : "Vas a entrar como colaborador/a de esta familia."}
               </p>
             </div>
           </div>

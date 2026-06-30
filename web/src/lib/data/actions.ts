@@ -1,10 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
-import { getSupabaseEnv } from "@/lib/supabase/env";
 import { sendInviteEmail } from "@/lib/email";
 import type { AlertEstado, FamilyRole } from "@/lib/types";
 
@@ -434,40 +432,52 @@ export async function invitarAdultoMayor(
     return { ok: false, error: "Tu sesión expiró. Volvé a ingresar." };
   }
 
-  const { error: insertError } = await supabase.from("invites").insert({
-    family_id: familyId,
-    email,
-    rol: "adulto_mayor" as const,
-    elder_id: elderId,
-    invited_by: user.id,
-  });
+  const { data, error: insertError } = await supabase
+    .from("invites")
+    .insert({
+      family_id: familyId,
+      email,
+      rol: "adulto_mayor" as const,
+      elder_id: elderId,
+      invited_by: user.id,
+    })
+    .select("token")
+    .single();
 
-  if (insertError) {
-    if (insertError.code === "23505") {
+  if (insertError || !data) {
+    if (insertError?.code === "23505") {
       return { ok: false, error: "Ya hay una invitación pendiente para ese correo." };
     }
     return {
       ok: false,
-      error: `No se pudo crear la invitación: ${insertError.message}`,
+      error: `No se pudo crear la invitación: ${insertError?.message ?? "error desconocido"}`,
     };
   }
 
-  // Enviar magic link usando un cliente anónimo sin sesión del admin.
-  // Si usáramos el cliente SSR del admin, Supabase ataria el PKCE code verifier
-  // a las cookies del admin; cuando el amigo abre el link en SU browser sin
-  // esas cookies, verifyOtp falla. El cliente anónimo evita ese problema.
-  const { url: supabaseUrl, anonKey } = getSupabaseEnv();
-  const anonClient = createSupabaseClient(supabaseUrl, anonKey);
-  const { error: otpError } = await anonClient.auth.signInWithOtp({
-    email,
-    options: {
-      shouldCreateUser: true,
-      emailRedirectTo: `${getSiteUrl()}/auth/confirm`,
-    },
+  const token = data.token as string;
+
+  const { data: family } = await supabase
+    .from("families")
+    .select("nombre")
+    .eq("id", familyId)
+    .maybeSingle();
+
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const inviterName =
+    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+    user.email ||
+    "Alguien";
+
+  const emailed = await sendInviteEmail({
+    to: email,
+    familyName: family?.nombre ?? "tu familia",
+    inviterName,
+    role: "adulto_mayor",
+    acceptUrl: `${getSiteUrl()}/dashboard/invitacion/${token}`,
   });
 
   revalidatePath(`/dashboard/${familyId}`, "layout");
-  return { ok: true, data: { emailed: !otpError } };
+  return { ok: true, data: { emailed } };
 }
 
 const VALID_ESTADOS: AlertEstado[] = ["pendiente", "vista", "resuelta"];

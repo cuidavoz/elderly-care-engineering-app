@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Users } from "lucide-react";
+import { ChevronRight, HeartHandshake, Users } from "lucide-react";
 
+import { createClient } from "@/lib/supabase/server";
 import { getFamilies } from "@/lib/data/queries";
 import {
   Card,
@@ -18,6 +19,11 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const metadata = (data?.claims?.user_metadata ?? {}) as Record<string, unknown>;
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+
   const families = await getFamilies();
 
   if (families.length === 0) {
@@ -25,13 +31,20 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Inicio</h1>
-          <p className="text-muted-foreground">
-            Elegí una familia para ver sus adultos mayores y reportes.
-          </p>
+    <div className="flex flex-col gap-8">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="bg-accent text-primary flex size-12 items-center justify-center rounded-2xl">
+            <HeartHandshake className="size-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {fullName ? `Hola, ${fullName.split(" ")[0]}` : "Bienvenido/a"}
+            </h1>
+            <p className="text-muted-foreground">
+              Elegí una familia para ver sus adultos mayores y reportes.
+            </p>
+          </div>
         </div>
         <CreateFamilyDialog />
       </div>

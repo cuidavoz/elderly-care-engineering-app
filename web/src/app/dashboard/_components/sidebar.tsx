@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Users } from "lucide-react";
+import { Home } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
@@ -37,12 +37,6 @@ export function DashboardSidebar({
           icon={Home}
           label="Inicio"
           active={pathname === "/dashboard"}
-        />
-        <SidebarLink
-          href="/dashboard/familia"
-          icon={Users}
-          label="Familias"
-          active={pathname === "/dashboard/familia"}
         />
 
         {families.length > 0 && (

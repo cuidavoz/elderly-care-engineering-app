@@ -4,20 +4,20 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Confirmación de email (patrón SSR de @supabase/ssr).
+ * Confirmación de OTP (magic link y signup).
  *
- * El template de "Confirm signup" en Supabase apunta acá con `token_hash` + `type`
- * (en vez de usar el flujo implícito de {{ .ConfirmationURL }}, que no setea bien
- * la cookie de sesión en SSR). Verificamos el OTP server-side —lo que escribe la
- * cookie de sesión— y redirigimos a `next` (la invitación o el panel).
+ * Flujo adulto_mayor:
+ *   1. invitarAdultoMayor() crea la fila en `invites` y envía magic link.
+ *   2. El adulto mayor hace clic → llega acá con token_hash + type=magiclink.
+ *   3. Verificamos el OTP → sesión establecida.
+ *   4. Buscamos la invitación pendiente de adulto_mayor para ese email.
+ *   5. Llamamos accept_invite() → elders.user_id queda vinculado.
+ *   6. Redirigimos a /elder.
  *
- *   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next={{ .RedirectTo }}
+ * Flujo regular (signup de cuidador/familiar):
+ *   - Igual que antes: verifica OTP y redirige a `next` (default /dashboard).
  */
 
-/**
- * Normaliza `next` a una ruta interna segura (evita open-redirect). Acepta tanto
- * un path absoluto ("/dashboard/...") como una URL completa del mismo origen.
- */
 function safeNext(raw: string | null, origin: string): string {
   if (!raw) return "/dashboard";
   try {
@@ -35,19 +35,60 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") as EmailOtpType | null;
   const next = safeNext(searchParams.get("next"), origin);
 
-  if (tokenHash && type) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash: tokenHash,
-    });
-    if (!error) {
-      return NextResponse.redirect(new URL(next, origin));
-    }
+  if (!tokenHash || !type) {
+    const loginUrl = new URL("/login", origin);
+    loginUrl.searchParams.set("notice", "confirm-error");
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Token ausente, vencido o inválido → al login con un aviso.
-  const loginUrl = new URL("/login", origin);
-  loginUrl.searchParams.set("notice", "confirm-error");
-  return NextResponse.redirect(loginUrl);
+  const supabase = await createClient();
+  const { error: otpError } = await supabase.auth.verifyOtp({
+    type,
+    token_hash: tokenHash,
+  });
+
+  if (otpError) {
+    const loginUrl = new URL("/login", origin);
+    loginUrl.searchParams.set("notice", "confirm-error");
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Null-guard: getUser() puede devolver null en edge cases.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return NextResponse.redirect(new URL("/login", origin));
+  }
+
+  // Buscar invitación pendiente de adulto_mayor para este email.
+  const { data: pendingInvite } = await supabase
+    .from("invites")
+    .select("token")
+    .eq("email", user.email.toLowerCase())
+    .eq("status", "pendiente")
+    .eq("rol", "adulto_mayor")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingInvite) {
+    // Fix ronda 6 C1: redirect fuera del try para que NEXT_REDIRECT no sea
+    // capturado por el catch (en Route Handlers se usa NextResponse.redirect,
+    // pero dejamos el patrón explícito por claridad).
+    try {
+      const { error: rpcError } = await supabase.rpc("accept_invite", {
+        _token: pendingInvite.token,
+      });
+      if (rpcError) throw rpcError;
+    } catch {
+      return NextResponse.redirect(
+        new URL("/error?message=invite_failed", origin)
+      );
+    }
+    return NextResponse.redirect(new URL("/elder", origin));
+  }
+
+  return NextResponse.redirect(new URL(next, origin));
 }

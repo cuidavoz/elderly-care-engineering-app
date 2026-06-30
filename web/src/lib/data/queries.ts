@@ -49,7 +49,11 @@ export async function getFamilies(): Promise<FamilyWithRole[]> {
 
   return ((data ?? []) as unknown as Row[])
     .filter((row): row is Row & { families: Family } => row.families != null)
-    .map((row) => ({ ...row.families, rol: row.rol }));
+    .map((row) => ({
+      ...row.families,
+      rol: row.rol,
+      isOwner: row.families.created_by === user.id,
+    }));
 }
 
 /** Una familia puntual (o null si no existe / no es accesible por RLS). */
@@ -74,7 +78,7 @@ export async function getElders(familyId: string): Promise<Elder[]> {
 
   const { data, error } = await supabase
     .from("elders")
-    .select("id, family_id, nombre, metadata, created_at")
+    .select("id, family_id, nombre, user_id, metadata, created_at")
     .eq("family_id", familyId)
     .order("nombre", { ascending: true });
 
@@ -92,7 +96,7 @@ export async function getElder(elderId: string): Promise<Elder | null> {
 
   const { data, error } = await supabase
     .from("elders")
-    .select("id, family_id, nombre, metadata, created_at")
+    .select("id, family_id, nombre, user_id, metadata, created_at")
     .eq("id", elderId)
     .maybeSingle();
 
@@ -179,23 +183,34 @@ const INVITE_COLUMNS =
   "id, family_id, email, rol, token, invited_by, status, created_at, accepted_at, accepted_by";
 
 /**
- * Miembros de una familia con su perfil (nombre/email). Hacemos el join desde
- * `family_members` hacia `profiles`. El owner va primero; dentro de cada rol,
- * orden alfabético por nombre (los sin nombre, al final).
+ * Miembros de una familia con su perfil (nombre/email). El creador/owner
+ * (derivado de `families.created_by`) va primero; dentro del resto, orden
+ * alfabético por nombre (los sin nombre, al final).
  */
 export async function getFamilyMembers(
   familyId: string
 ): Promise<FamilyMember[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("family_members")
-    .select("rol, profile_id, profiles(id, nombre, email)")
-    .eq("family_id", familyId);
+  const [membersResult, familyResult] = await Promise.all([
+    supabase
+      .from("family_members")
+      .select("rol, profile_id, profiles(id, nombre, email)")
+      .eq("family_id", familyId),
+    supabase
+      .from("families")
+      .select("created_by")
+      .eq("id", familyId)
+      .single(),
+  ]);
 
-  if (error) {
-    throw new Error(`No se pudieron cargar los miembros: ${error.message}`);
+  if (membersResult.error) {
+    throw new Error(
+      `No se pudieron cargar los miembros: ${membersResult.error.message}`
+    );
   }
+
+  const createdBy = familyResult.data?.created_by ?? null;
 
   type ProfileRow = { id: string; nombre: string | null; email: string | null };
   type Row = {
@@ -204,18 +219,19 @@ export async function getFamilyMembers(
     profiles: ProfileRow | null;
   };
 
-  const members: FamilyMember[] = ((data ?? []) as unknown as Row[]).map(
-    (row) => ({
-      profile_id: row.profile_id,
-      nombre: row.profiles?.nombre ?? null,
-      email: row.profiles?.email ?? null,
-      rol: row.rol,
-    })
-  );
+  const members: FamilyMember[] = (
+    (membersResult.data ?? []) as unknown as Row[]
+  ).map((row) => ({
+    profile_id: row.profile_id,
+    nombre: row.profiles?.nombre ?? null,
+    email: row.profiles?.email ?? null,
+    rol: row.rol,
+    isOwner: row.profile_id === createdBy,
+  }));
 
-  // Owner primero; dentro del grupo, por nombre (los sin nombre al final).
+  // Creador/owner primero; dentro del resto, por nombre (los sin nombre al final).
   return members.sort((a, b) => {
-    if (a.rol !== b.rol) return a.rol === "owner" ? -1 : 1;
+    if (a.isOwner !== b.isOwner) return a.isOwner ? -1 : 1;
     const an = a.nombre ?? "￿";
     const bn = b.nombre ?? "￿";
     return an.localeCompare(bn, "es");

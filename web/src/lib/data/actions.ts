@@ -110,7 +110,7 @@ export async function createElder(
   return { ok: true, data: { id: data.id } };
 }
 
-const VALID_ROLES: FamilyRole[] = ["owner", "caregiver"];
+const VALID_ROLES: FamilyRole[] = ["cuidador", "familiar", "adulto_mayor"];
 
 // Regex simple para descartar entradas claramente inválidas (no valida RFC).
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -129,10 +129,10 @@ export async function createInvite(
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
-  const rolRaw = String(formData.get("rol") ?? "caregiver").trim();
+  const rolRaw = String(formData.get("rol") ?? "cuidador").trim();
   const rol = (VALID_ROLES.includes(rolRaw as FamilyRole)
     ? rolRaw
-    : "caregiver") as FamilyRole;
+    : "cuidador") as FamilyRole;
 
   if (!familyId) {
     return { ok: false, error: "Falta la familia." };
@@ -299,6 +299,169 @@ export async function rejectInvite(token: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard", "layout");
   return { ok: true, data: undefined };
+}
+
+/** Elimina un reporte. La RLS valida que el usuario sea owner de la familia. */
+export async function deleteReport(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const reportId = String(formData.get("reportId") ?? "").trim();
+  const familyId = String(formData.get("familyId") ?? "").trim();
+  const elderId = String(formData.get("elderId") ?? "").trim();
+
+  if (!reportId) return { ok: false, error: "Falta el reporte." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("reports").delete().eq("id", reportId);
+
+  if (error) {
+    return { ok: false, error: `No se pudo eliminar el reporte: ${error.message}` };
+  }
+
+  if (familyId && elderId) {
+    revalidatePath(`/dashboard/${familyId}/${elderId}`, "layout");
+  } else {
+    revalidatePath("/dashboard", "layout");
+  }
+  return { ok: true, data: undefined };
+}
+
+/** Elimina una familia. La RLS valida que created_by = usuario actual. */
+export async function deleteFamily(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const familyId = String(formData.get("familyId") ?? "").trim();
+  if (!familyId) return { ok: false, error: "Falta la familia." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("families").delete().eq("id", familyId);
+
+  if (error) {
+    return { ok: false, error: `No se pudo eliminar la familia: ${error.message}` };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, data: undefined };
+}
+
+/** Elimina un miembro de la familia. La RLS bloquea que el owner se elimine a sí mismo. */
+export async function removeMember(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const familyId = String(formData.get("familyId") ?? "").trim();
+  const profileId = String(formData.get("profileId") ?? "").trim();
+
+  if (!familyId || !profileId) {
+    return { ok: false, error: "Faltan datos." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("family_members")
+    .delete()
+    .eq("family_id", familyId)
+    .eq("profile_id", profileId);
+
+  if (error) {
+    return { ok: false, error: `No se pudo eliminar el miembro: ${error.message}` };
+  }
+
+  revalidatePath(`/dashboard/${familyId}`, "layout");
+  return { ok: true, data: undefined };
+}
+
+/** Transfiere el ownership a otro miembro (RPC valida roles y permisos). */
+export async function transferOwnership(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const familyId = String(formData.get("familyId") ?? "").trim();
+  const newOwnerId = String(formData.get("newOwnerId") ?? "").trim();
+
+  if (!familyId || !newOwnerId) {
+    return { ok: false, error: "Faltan datos." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("transfer_ownership", {
+    _family_id: familyId,
+    _new_owner_id: newOwnerId,
+  });
+
+  if (error) {
+    return { ok: false, error: `No se pudo transferir: ${error.message}` };
+  }
+
+  revalidatePath(`/dashboard/${familyId}`, "layout");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, data: undefined };
+}
+
+/**
+ * Invita a un adulto mayor: crea la fila en `invites` con el `elder_id`
+ * asociado y envía un magic link al email para que pueda ingresar sin
+ * necesidad de crear una cuenta manualmente.
+ */
+export async function invitarAdultoMayor(
+  _prevState: ActionResult<{ emailed: boolean }> | null,
+  formData: FormData
+): Promise<ActionResult<{ emailed: boolean }>> {
+  const familyId = String(formData.get("familyId") ?? "").trim();
+  const elderId = String(formData.get("elderId") ?? "").trim();
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!familyId) return { ok: false, error: "Falta la familia." };
+  if (!elderId) return { ok: false, error: "Falta el adulto mayor." };
+  if (!email) return { ok: false, error: "Poné el correo del adulto mayor." };
+  if (email.length > 120) return { ok: false, error: "El correo es demasiado largo (máx. 120)." };
+  if (!EMAIL_RE.test(email)) return { ok: false, error: "Ese correo no parece válido." };
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { ok: false, error: "Tu sesión expiró. Volvé a ingresar." };
+  }
+
+  const { error: insertError } = await supabase.from("invites").insert({
+    family_id: familyId,
+    email,
+    rol: "adulto_mayor" as const,
+    elder_id: elderId,
+    invited_by: user.id,
+  });
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return { ok: false, error: "Ya hay una invitación pendiente para ese correo." };
+    }
+    return {
+      ok: false,
+      error: `No se pudo crear la invitación: ${insertError.message}`,
+    };
+  }
+
+  // Enviar magic link (crea el usuario si no existe; al aceptar la OTP el
+  // confirm/route.ts detecta la invitación pendiente y llama accept_invite).
+  const { error: otpError } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: `${getSiteUrl()}/auth/confirm`,
+    },
+  });
+
+  revalidatePath(`/dashboard/${familyId}`, "layout");
+  return { ok: true, data: { emailed: !otpError } };
 }
 
 const VALID_ESTADOS: AlertEstado[] = ["pendiente", "vista", "resuelta"];

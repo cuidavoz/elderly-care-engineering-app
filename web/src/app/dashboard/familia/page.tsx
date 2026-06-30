@@ -45,8 +45,14 @@ export default async function FamiliasPage() {
                   <div className="bg-accent text-primary flex size-9 items-center justify-center rounded-lg">
                     <Users className="size-4" />
                   </div>
-                  <Badge variant={family.rol === "owner" ? "default" : "secondary"}>
-                    {family.rol === "owner" ? "Propietario/a" : "Cuidador/a"}
+                  <Badge variant={family.isOwner ? "default" : "secondary"}>
+                    {family.isOwner
+                      ? "Propietario/a"
+                      : family.rol === "adulto_mayor"
+                        ? "Adulto mayor"
+                        : family.rol === "familiar"
+                          ? "Familiar"
+                          : "Cuidador/a"}
                   </Badge>
                 </div>
                 <CardTitle className="mt-2 flex items-center justify-between">

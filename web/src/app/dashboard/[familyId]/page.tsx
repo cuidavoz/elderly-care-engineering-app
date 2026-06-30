@@ -146,8 +146,14 @@ export default async function FamilyPage({
                     </p>
                   ) : null}
                 </div>
-                <Badge variant={member.rol === "owner" ? "default" : "secondary"}>
-                  {member.rol === "owner" ? "Administrador" : "Cuidador"}
+                <Badge variant={member.isOwner ? "default" : "secondary"}>
+                  {member.isOwner
+                    ? "Administrador"
+                    : member.rol === "adulto_mayor"
+                      ? "Adulto mayor"
+                      : member.rol === "familiar"
+                        ? "Familiar"
+                        : "Cuidador"}
                 </Badge>
               </li>
             ))}
@@ -170,7 +176,11 @@ export default async function FamilyPage({
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{invite.email}</p>
                       <p className="text-muted-foreground text-xs">
-                        {invite.rol === "owner" ? "Administrador" : "Cuidador"}
+                        {invite.rol === "adulto_mayor"
+                          ? "Adulto mayor"
+                          : invite.rol === "familiar"
+                            ? "Familiar"
+                            : "Cuidador"}
                       </p>
                     </div>
                     <CopyInviteLink token={invite.token} />

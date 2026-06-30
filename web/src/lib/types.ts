@@ -7,7 +7,7 @@
  * del web app y puede venir incompleto.
  */
 
-export type FamilyRole = "owner" | "caregiver";
+export type FamilyRole = "cuidador" | "familiar" | "adulto_mayor";
 export type AlertSeverity = "baja" | "media" | "alta";
 export type AlertEstado = "pendiente" | "vista" | "resuelta";
 
@@ -52,13 +52,15 @@ export type InvitePreview = {
 
 /**
  * Miembro de una familia con su perfil. `nombre`/`email` pueden venir null si el
- * perfil asociado todavía no tiene esos datos.
+ * perfil asociado todavía no tiene esos datos. `isOwner` se deriva de
+ * `families.created_by` (no del campo `rol`).
  */
 export type FamilyMember = {
   profile_id: string;
   nombre: string | null;
   email: string | null;
   rol: FamilyRole;
+  isOwner: boolean;
 };
 
 export type Family = {
@@ -68,13 +70,14 @@ export type Family = {
   created_at: string;
 };
 
-/** Familia + el rol del usuario actual en ella (derivado de family_members). */
-export type FamilyWithRole = Family & { rol: FamilyRole };
+/** Familia + el rol del usuario actual en ella + si es el creador/owner. */
+export type FamilyWithRole = Family & { rol: FamilyRole; isOwner: boolean };
 
 export type Elder = {
   id: string;
   family_id: string;
   nombre: string;
+  user_id: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
 };

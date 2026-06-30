@@ -19,7 +19,9 @@ import { acceptInvite, rejectInvite } from "@/lib/data/actions";
 import type { FamilyRole } from "@/lib/types";
 
 function rolLabel(rol: FamilyRole): string {
-  return rol === "owner" ? "Administrador/a" : "Cuidador/a";
+  if (rol === "adulto_mayor") return "Adulto/a mayor";
+  if (rol === "familiar") return "Familiar";
+  return "Cuidador/a";
 }
 
 /**
@@ -92,7 +94,7 @@ export function AcceptInviteCard({
               </p>
             </div>
           </div>
-          <Badge variant={rol === "owner" ? "default" : "secondary"}>
+          <Badge variant={rol === "familiar" ? "default" : "secondary"}>
             {rolLabel(rol)}
           </Badge>
         </div>

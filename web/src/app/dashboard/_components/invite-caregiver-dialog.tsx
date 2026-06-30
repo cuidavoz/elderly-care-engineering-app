@@ -145,13 +145,13 @@ export function InviteCaregiverDialog({ familyId }: { familyId: string }) {
               <select
                 id="rol"
                 name="rol"
-                defaultValue="caregiver"
+                defaultValue="cuidador"
                 className={cn(
                   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30"
                 )}
               >
-                <option value="caregiver">Cuidador</option>
-                <option value="owner">Administrador</option>
+                <option value="cuidador">Cuidador</option>
+                <option value="familiar">Familiar</option>
               </select>
               <p className="text-muted-foreground text-xs">
                 El administrador puede gestionar la familia; el cuidador ve

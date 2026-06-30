@@ -41,7 +41,9 @@ function getTransport() {
 }
 
 function rolLabel(rol: FamilyRole): string {
-  return rol === "owner" ? "Administrador/a" : "Cuidador/a";
+  if (rol === "adulto_mayor") return "Adulto/a mayor";
+  if (rol === "familiar") return "Familiar";
+  return "Cuidador/a";
 }
 
 function escapeHtml(s: string): string {

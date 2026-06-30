@@ -30,6 +30,12 @@ export default async function DashboardLayout({
   // Familias para el selector del sidebar (RLS filtra por membresía).
   const families = await getFamilies();
 
+  // Un usuario que solo tiene rol adulto_mayor no debería ver el dashboard de
+  // cuidadores — lo mandamos a su propia vista simplificada.
+  if (families.length > 0 && families.every((f) => f.rol === "adulto_mayor")) {
+    redirect("/elder");
+  }
+
   return (
     <div className="flex min-h-svh">
       <DashboardSidebar families={families} />

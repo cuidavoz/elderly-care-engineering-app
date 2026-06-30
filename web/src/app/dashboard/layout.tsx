@@ -34,7 +34,7 @@ export default async function DashboardLayout({
     <div className="flex min-h-svh">
       <DashboardSidebar families={families} />
       <div className="flex flex-1 flex-col">
-        <DashboardHeader displayName={displayName} email={email} />
+        <DashboardHeader displayName={displayName} email={email} families={families} />
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>

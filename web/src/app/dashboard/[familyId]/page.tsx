@@ -77,7 +77,7 @@ export default async function FamilyPage({
               familyNombre={family.nombre}
             />
           )}
-          {elders.length > 0 && <CreateElderDialog familyId={familyId} />}
+          {isOwner && elders.length > 0 && <CreateElderDialog familyId={familyId} />}
         </div>
       </div>
 
@@ -86,7 +86,7 @@ export default async function FamilyPage({
           icon={UserRound}
           title="Todavía no hay adultos mayores"
           description="Sumá a la primera persona que cuidás para empezar a ver sus reportes y alertas."
-          action={<CreateElderDialog familyId={familyId} />}
+          action={isOwner ? <CreateElderDialog familyId={familyId} /> : undefined}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

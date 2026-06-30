@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { Mic } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { RecordButton } from "./_components/record-button";
 
 export default async function ElderPage() {
   const supabase = await createClient();
@@ -30,17 +30,7 @@ export default async function ElderPage() {
         </p>
       </div>
 
-      <button
-        className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-32 w-32 cursor-not-allowed items-center justify-center rounded-full shadow-lg transition-colors opacity-60"
-        disabled
-        aria-label="Grabar"
-      >
-        <Mic className="size-12" />
-      </button>
-
-      <p className="text-muted-foreground text-sm">
-        Función de grabación en desarrollo
-      </p>
+      <RecordButton elderId={elder.id} />
     </main>
   );
 }

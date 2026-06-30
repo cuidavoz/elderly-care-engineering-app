@@ -38,7 +38,7 @@ export function backendHeaders(): Record<string, string> {
 // (deja ~2s para devolver la respuesta). El backend en el free tier de Render
 // puede tardar más que esto en audios largos; en ese caso el proxy corta con 504
 // pero el backend igual termina y persiste el reporte (la UI lo maneja como
-// "generándose", no como error). Ver upload-audio.tsx.
+// "generándose", no como error). Ver elder/_components/record-button.tsx.
 export const AUDIO_TIMEOUT_MS = 58_000;
 export const QUERY_TIMEOUT_MS = 60_000;
 

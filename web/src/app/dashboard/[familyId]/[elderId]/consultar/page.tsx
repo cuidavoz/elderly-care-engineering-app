@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 
 import { QaChat } from "./_components/qa-chat";
-import { UploadAudio } from "./_components/upload-audio";
 
 export const metadata: Metadata = {
   title: "Consultar",
 };
 
 /**
- * "Consultar": Q&A sobre el historial (RAG) + Subir audio (genera reporte).
- * Ambos flujos pegan a Route Handlers (`/api/elders/[elderId]/...`) que
- * proxyean al backend Python (transcripción + LLM + RAG, persiste en Supabase).
+ * "Consultar": Q&A sobre el historial (RAG). Pega a un Route Handler
+ * (`/api/elders/[elderId]/consultas`) que proxyea al backend Python
+ * (RAG sobre los reportes persistidos en Supabase).
+ *
+ * La carga manual de audio se jubiló: el insumo ahora es el audio que graba el
+ * propio adulto mayor desde /elder (genera reportes, tendencias y alertas).
  */
 export default async function ConsultarPage({
   params,
@@ -22,7 +24,6 @@ export default async function ConsultarPage({
   return (
     <div className="flex flex-col gap-6">
       <QaChat elderId={elderId} />
-      <UploadAudio elderId={elderId} />
     </div>
   );
 }

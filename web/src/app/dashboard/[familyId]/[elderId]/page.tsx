@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Download, FileText, ShieldCheck } from "lucide-react";
 
+import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getElder, getReports } from "@/lib/data/queries";
+import { getElder, getFamily, getReports } from "@/lib/data/queries";
+import { DeleteReportButton } from "../../_components/delete-report-button";
 import { ReportCard } from "../../_components/report-card";
 import { EmptyState } from "../../_components/empty-state";
 
@@ -22,8 +24,19 @@ export default async function ReportesPage({
 }: {
   params: Promise<{ familyId: string; elderId: string }>;
 }) {
-  const { elderId } = await params;
-  const reports = await getReports(elderId);
+  const { familyId, elderId } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [family, reports] = await Promise.all([
+    getFamily(familyId),
+    getReports(elderId),
+  ]);
+
+  const isOwner = !!(user && family?.created_by === user.id);
 
   if (reports.length === 0) {
     return (
@@ -35,9 +48,6 @@ export default async function ReportesPage({
     );
   }
 
-  // Promedio de fidelidad: proporción de afirmaciones del modelo respaldadas por
-  // la transcripción, a través de los reportes que la tengan calculada. Los
-  // reportes viejos (sin `faithfulness`) o sin claims (score null) se ignoran.
   const scoresFidelidad = reports
     .map((r) => r.payload?.faithfulness?.score)
     .filter((s): s is number => typeof s === "number");
@@ -85,7 +95,18 @@ export default async function ReportesPage({
       )}
 
       {reports.map((report) => (
-        <ReportCard key={report.id} report={report} />
+        <div key={report.id} className="relative">
+          {isOwner && (
+            <div className="absolute top-3 right-3 z-10">
+              <DeleteReportButton
+                reportId={report.id}
+                familyId={familyId}
+                elderId={elderId}
+              />
+            </div>
+          )}
+          <ReportCard report={report} />
+        </div>
       ))}
     </div>
   );

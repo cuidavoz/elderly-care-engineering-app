@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, Mail, UserRound, Users } from "lucide-react";
 
+import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -19,9 +20,13 @@ import {
 } from "@/lib/data/queries";
 import { CreateElderDialog } from "../_components/create-elder-dialog";
 import { CopyInviteLink } from "../_components/copy-invite-link";
+import { DeleteFamilyButton } from "../_components/delete-family-button";
 import { EmptyState } from "../_components/empty-state";
 import { InviteCaregiverDialog } from "../_components/invite-caregiver-dialog";
+import { InviteElderDialog } from "../_components/invite-elder-dialog";
+import { RemoveMemberButton } from "../_components/remove-member-button";
 import { RevokeInviteButton } from "../_components/revoke-invite-button";
+import { TransferOwnershipDialog } from "../_components/transfer-ownership-dialog";
 
 export async function generateMetadata({
   params,
@@ -39,12 +44,20 @@ export default async function FamilyPage({
   params: Promise<{ familyId: string }>;
 }) {
   const { familyId } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const [family, elders, members, invites] = await Promise.all([
     getFamily(familyId),
     getElders(familyId),
     getFamilyMembers(familyId),
     getInvites(familyId),
   ]);
+
+  const isOwner = !!(user && family?.created_by === user.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,7 +70,15 @@ export default async function FamilyPage({
             Adultos mayores de esta familia. Elegí uno para ver su panel.
           </p>
         </div>
-        {elders.length > 0 && <CreateElderDialog familyId={familyId} />}
+        <div className="flex items-center gap-2">
+          {isOwner && family && (
+            <DeleteFamilyButton
+              familyId={familyId}
+              familyNombre={family.nombre}
+            />
+          )}
+          {elders.length > 0 && <CreateElderDialog familyId={familyId} />}
+        </div>
       </div>
 
       {elders.length === 0 ? (
@@ -116,14 +137,17 @@ export default async function FamilyPage({
               <Users className="size-4" />
             </div>
             <div className="flex-1">
-              <CardTitle>Cuidadores</CardTitle>
+              <CardTitle>Miembros</CardTitle>
               <CardDescription className="mt-1">
                 Quiénes colaboran en esta familia y las invitaciones pendientes.
               </CardDescription>
             </div>
-            <CardAction>
-              <InviteCaregiverDialog familyId={familyId} />
-            </CardAction>
+            {isOwner && (
+              <CardAction className="flex items-center gap-2">
+                <InviteElderDialog familyId={familyId} elders={elders} />
+                <InviteCaregiverDialog familyId={familyId} />
+              </CardAction>
+            )}
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -155,9 +179,22 @@ export default async function FamilyPage({
                         ? "Familiar"
                         : "Cuidador"}
                 </Badge>
+                {isOwner && !member.isOwner && (
+                  <RemoveMemberButton
+                    familyId={familyId}
+                    profileId={member.profile_id}
+                    nombre={member.nombre}
+                  />
+                )}
               </li>
             ))}
           </ul>
+
+          {isOwner && members.filter((m) => !m.isOwner && m.rol !== "adulto_mayor").length > 0 && (
+            <div className="border-t pt-3">
+              <TransferOwnershipDialog familyId={familyId} members={members} />
+            </div>
+          )}
 
           {invites.length > 0 ? (
             <div className="flex flex-col gap-2">
@@ -184,10 +221,12 @@ export default async function FamilyPage({
                       </p>
                     </div>
                     <CopyInviteLink token={invite.token} />
-                    <RevokeInviteButton
-                      inviteId={invite.id}
-                      familyId={familyId}
-                    />
+                    {isOwner && (
+                      <RevokeInviteButton
+                        inviteId={invite.id}
+                        familyId={familyId}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>

@@ -151,6 +151,7 @@ export function AuthForm({
                 type="text"
                 autoComplete="name"
                 placeholder="Ana Pérez"
+                required
               />
             </div>
           )}

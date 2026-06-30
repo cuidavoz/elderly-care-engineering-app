@@ -89,6 +89,12 @@ export async function signup(
   if (!email || !password) {
     return { error: "Ingresá tu email y contraseña." };
   }
+  // Nombre obligatorio: garantiza que profiles.nombre sea un nombre real (no el
+  // email-fallback de handle_new_user), para que el sync elder/profile al aceptar
+  // la invitación siempre quede coordinado. Ver 0011_sync_elder_nombre.sql.
+  if (!fullName) {
+    return { error: "Ingresá tu nombre completo." };
+  }
   if (password.length < 6) {
     return { error: "La contraseña debe tener al menos 6 caracteres." };
   }

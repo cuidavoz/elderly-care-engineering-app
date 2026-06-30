@@ -17,3 +17,8 @@ class GraphState(TypedDict, total=False):
     respuesta: Optional[str]    # respuesta del Q&A
     notificar: Optional[bool]   # True si hay alerta alta -> notificar al familiar
     error: Optional[str]
+    # loop agentico A+C
+    reporte_salud: Optional[dict]         # output del health_agent
+    reporte_bienestar: Optional[dict]     # output del wellbeing_agent
+    iteracion_reporte: Optional[int]      # cuántas veces corrió el evaluador
+    feedback_faithfulness: Optional[str]  # feedback del evaluador → synthesizer

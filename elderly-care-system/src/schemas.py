@@ -76,4 +76,5 @@ class Reporte(BaseModel):
     # mostrar la evidencia de fidelidad: qué afirmó el modelo sin sustento.
     claims_descartados: list[Claim] = Field(default_factory=list)
     incompleto: bool = False  # True si la transcripción fue poco confiable
-    faithfulness: Optional[Faithfulness] = None  # fidelidad sobre claims crudos
+    faithfulness: Optional[Faithfulness] = None          # score substring (guard)
+    faithfulness_semantica: Optional[Faithfulness] = None  # score semántico (evaluador agentico)

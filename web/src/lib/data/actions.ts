@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseEnv } from "@/lib/supabase/env";
 import { sendInviteEmail } from "@/lib/email";
 import type { AlertEstado, FamilyRole } from "@/lib/types";
 
@@ -450,9 +452,13 @@ export async function invitarAdultoMayor(
     };
   }
 
-  // Enviar magic link (crea el usuario si no existe; al aceptar la OTP el
-  // confirm/route.ts detecta la invitación pendiente y llama accept_invite).
-  const { error: otpError } = await supabase.auth.signInWithOtp({
+  // Enviar magic link usando un cliente anónimo sin sesión del admin.
+  // Si usáramos el cliente SSR del admin, Supabase ataria el PKCE code verifier
+  // a las cookies del admin; cuando el amigo abre el link en SU browser sin
+  // esas cookies, verifyOtp falla. El cliente anónimo evita ese problema.
+  const { url: supabaseUrl, anonKey } = getSupabaseEnv();
+  const anonClient = createSupabaseClient(supabaseUrl, anonKey);
+  const { error: otpError } = await anonClient.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: true,

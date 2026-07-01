@@ -3,6 +3,7 @@ import { LogOut } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { NotificationToggle } from "@/components/notification-toggle";
 import { signout } from "@/app/(auth)/actions";
 import { RecordButton } from "./_components/record-button";
 
@@ -44,6 +45,8 @@ export default async function ElderPage() {
           Tocá el micrófono cuando quieras contarme cómo estás
         </p>
       </div>
+
+      <NotificationToggle elderId={elder.id} />
 
       <RecordButton elderId={elder.id} />
     </main>

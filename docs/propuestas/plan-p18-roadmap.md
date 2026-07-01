@@ -88,13 +88,16 @@ plataforma de observabilidad completa).*
 
 ## Fase 2 — Notificación al celular
 
-- [ ] **2.1 PWA instalable** — `manifest` (nombre, iconos, `display: standalone`) + service worker básico.
-  - **Verificación:** en iPhone, Safari → "Agregar a inicio"; abre en modo app.
-- [ ] **2.2 Web Push** — claves **VAPID**, botón "Activar notificaciones" (desde la PWA instalada), guardar
-      la suscripción por elder, backend con librería `web-push` que envía cuando el dispatcher marca
-      `enviar` (según `programada_para`).
-  - **Verificación:** suscribir un device de prueba → disparar → llega la notificación → al tocarla abre
-    `/elder` con la pregunta. (iOS 16.4+, solo como PWA instalada.)
+- [x] **2.1 Infra PWA instalable** — `manifest` + service worker básico (`web/public/sw.js`) + apertura de
+      notificación hacia `/elder`.
+  - **Verificación:** `npm run lint` + `npm run build`; queda pendiente la prueba en iPhone real en 2.4.
+- [x] **2.2a Infra Web Push** — claves **VAPID**, tabla `push_subscriptions` con RLS, botón
+      "Activar avisos" / "Desactivar" para adulto mayor y cuidadores, guardado de suscripción por
+      `elder_id` + `profile_id`, helper server `web-push` y endpoint de prueba solo para dev.
+  - **Verificación:** activación/desactivación local y aviso de prueba local; `npm run lint` + `npm run build`.
+- [ ] **2.2b Dispatcher Web Push** — enviar con `sendWebPush` cuando el dispatcher marque `enviar` según
+      `programada_para`; al tocar la notificación debe abrir `/elder` con la pregunta pendiente.
+  - **Verificación:** generar followup programado → llega la notificación real → tap abre `/elder`.
 - [ ] **2.3 (Recomendado) Canal WhatsApp/SMS** (p. ej. Twilio) como aviso más robusto para un adulto mayor
       (no requiere instalar/PWA). Comparte la "infra de avisos" con P10/P12/P13/P14.
   - **Verificación:** enviar un mensaje de prueba y confirmar recepción.

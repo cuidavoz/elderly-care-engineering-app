@@ -13,3 +13,6 @@
 **/.env.*
 !.env.example
 !**/.env.example
+
+# Supabase Studio guarda queries locales acá; no son migraciones.
+/supabase/snippets/

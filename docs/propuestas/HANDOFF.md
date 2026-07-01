@@ -17,9 +17,13 @@ responde con un audio → arranca el pipeline normal.
 - Migración: `supabase/migrations/0012_followups.sql` (tabla + RLS). **Falta aplicarla a la base.**
 - Stores exponen `creado_en` (timestamp real): `storage/store.py` y `storage/postgres.py`.
 - Config: `llm_model_followup` (hook para migrar SOLO este agente a un modelo propio).
+- Infra base de notificaciones/PWA (parcial Fase 2): `supabase/migrations/0013_push_subscriptions.sql` +
+  `0014_push_subscription_endpoint_scope.sql`, `web/src/app/manifest.ts`, `web/public/sw.js`,
+  Route Handlers `/api/elders/[elderId]/push/*`, helper `web-push` y toggle compartido en `/elder` y
+  dashboard de cuidadores. El botón "Probar aviso" queda oculto/bloqueado en producción salvo opt-in.
 
 Falta (ver el roadmap): tests + eval (Fase 0), storage CRUD de `followups` + servicio + endpoint/scheduler +
-`/elder` (Fase 1), notificaciones/PWA/WhatsApp (Fase 2).
+`/elder` (Fase 1), integración del dispatcher real con Web Push + prueba iPhone/WhatsApp (Fase 2).
 
 ## Puesta a punto
 1. **Backend** (`elderly-care-system/`): usá el skill `cuidavoz-dev` (crea venv, instala deps, corre tests,
@@ -30,9 +34,11 @@ Falta (ver el roadmap): tests + eval (Fase 0), storage CRUD de `followups` + ser
    `.env.example`. Backend `.env`: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `ASR_PROVIDER` (prod=groq),
    `STORAGE_BACKEND`/`DATABASE_URL`, `INTERNAL_API_TOKEN`, `LLM_PROVIDER`. Web `.env.local`:
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `CUIDAVOZ_API_BASE`,
-   `CUIDAVOZ_INTERNAL_TOKEN`, `NEXT_PUBLIC_SITE_URL`.
-4. **Aplicar la migración** `0012_followups.sql` a Supabase (SQL editor o `npx supabase db push`). Las
-   migraciones NO se aplican solas. (Nota: revisá que el historial de migraciones esté al día.)
+   `CUIDAVOZ_INTERNAL_TOKEN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+4. **Aplicar migraciones pendientes** a Supabase (SQL editor o `npx supabase db push` / `migration up`):
+   `0012_followups.sql` para Fase 1 y `0013`/`0014` para Web Push. Las migraciones NO se aplican solas.
+   (Nota: revisá que el historial de migraciones esté al día.)
 
 ## MCPs (recomendados para verificar/inspeccionar; no imprescindibles para codear)
 Instalalos con **tus propios tokens** (no reutilices los de otro). Son read-only/inspección: Supabase (DB),
@@ -48,7 +54,8 @@ Verificá con `claude mcp list`.
 ## Por dónde empezar
 Roadmap → **Fase 0.1**: escribir `tests/test_followup.py` (lógica determinista: ventana 24 h, "hace cuánto",
 parseo, camino "no molestar", resiliencia) con el LLM mockeado. Luego el golden set (`eval/followup_casos.json`)
-y el harness (`eval/eval_followup.py`).
+y el harness (`eval/eval_followup.py`). Si se retoma primero la rama de notificaciones, el siguiente paso es
+conectar el dispatcher/followup programado con `sendWebPush` y validar iPhone real (PWA instalada, iOS 16.4+).
 
 ## Notas del proyecto
 - Cada agente sigue la convención: función pura + parseo defensivo + **nunca tirar excepción** (degrada a un

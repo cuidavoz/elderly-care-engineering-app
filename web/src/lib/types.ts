@@ -10,6 +10,7 @@
 export type FamilyRole = "cuidador" | "familiar" | "adulto_mayor";
 export type AlertSeverity = "baja" | "media" | "alta";
 export type AlertEstado = "pendiente" | "vista" | "resuelta";
+export type PushSubscriptionEstado = "activa" | "inactiva";
 
 /** Estado de una invitación a colaborar en una familia. */
 export type InviteStatus = "pendiente" | "aceptada" | "revocada";
@@ -106,6 +107,20 @@ export type Alert = {
   resuelta_por: string | null;
   resuelta_at: string | null;
   created_at: string;
+};
+
+export type PushSubscriptionRow = {
+  id: string;
+  elder_id: string;
+  family_id: string;
+  profile_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  estado: PushSubscriptionEstado;
+  created_at: string;
+  updated_at: string;
 };
 
 /** Respuesta del backend `POST /digest` (resumen semanal). */

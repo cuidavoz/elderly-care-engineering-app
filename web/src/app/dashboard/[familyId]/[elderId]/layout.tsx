@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, UserRound } from "lucide-react";
 
+import { NotificationToggle } from "@/components/notification-toggle";
 import { getElder, getPendingAlertCount } from "@/lib/data/queries";
 import { ElderTabs } from "./_components/elder-tabs";
 
@@ -36,13 +37,17 @@ export default async function ElderLayout({
           <ArrowLeft className="size-4" />
           Volver a la familia
         </Link>
-        <div className="flex items-center gap-3">
-          <div className="bg-accent text-primary flex size-10 items-center justify-center rounded-full">
-            <UserRound className="size-5" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-accent text-primary flex size-10 items-center justify-center rounded-full">
+              <UserRound className="size-5" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {elder.nombre}
+            </h1>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {elder.nombre}
-          </h1>
+
+          <NotificationToggle elderId={elderId} align="end" />
         </div>
       </div>
 

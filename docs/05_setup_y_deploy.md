@@ -19,8 +19,8 @@ de arquitectura y features ver `01_system_spec.md` y `04_architecture_v2.md`.
 ### 1. Supabase local (DB + Auth)
 Desde la raíz del repo:
 ```bash
-npx supabase start          # levanta Postgres+Auth+Studio (Docker). Imprime API URL + anon key.
-npx supabase db reset       # aplica las migraciones supabase/migrations/0001..0006
+npx supabase start          # levanta Postgres+Auth+Studio (Docker). Imprime API URL + anon/publishable key.
+npx supabase db reset       # aplica las migraciones supabase/migrations/*
 ```
 Datos de demo (opcional): pegá el contenido de `web/supabase-seed.sql` en **Supabase Studio → SQL Editor → Run**.
 Login demo: `demo@cuidavoz.test` / `cuidavoz123`.
@@ -49,12 +49,20 @@ Tests: `.venv\Scripts\python.exe -m pytest -q`. (También hay una skill del proy
 ```bash
 cd web
 npm install
-copy .env.example .env.local   # completá con la URL + anon key que imprimió `supabase start`
+copy .env.example .env.local   # completá con la URL + anon/publishable key que imprimió `supabase start`
 npm run dev                    # http://localhost:3000
+```
+
+Para probar notificaciones Web Push en local, generá claves VAPID y completá también las variables
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT` (`NEXT_PUBLIC_ENABLE_PUSH_TEST`
+solo se usa si querés exponer el botón de prueba en un build de producción):
+```bash
+npx web-push generate-vapid-keys
 ```
 
 ### Gotchas (Windows/Docker)
 - Si el dashboard tira 500 con `JWT issued at future` → desfase de reloj del contenedor Docker (pasa tras dormir la PC). Reiniciá Docker o `wsl --shutdown`.
+- `supabase/config.toml` deja `[analytics].enabled = false` para evitar fallas del stack local en Windows; no afecta la DB/Auth ni la app.
 - Free tier / cold starts no aplican en local; sí en la nube (ver abajo).
 
 ## Deploy en la nube (producción)
@@ -70,11 +78,11 @@ npm run dev                    # http://localhost:3000
 - **Calentar el servidor antes de la demo:** hacer un GET a `https://elderly-care-engineering-app.onrender.com/health` unos minutos antes. Con el servidor caliente, un audio de ~30s se procesa en 20–40s.
 
 ### Variables de entorno (los valores reales viven en los dashboards, NO en el repo)
-- **Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `CUIDAVOZ_API_BASE` (= URL de Render), `CUIDAVOZ_INTERNAL_TOKEN` (ver seguridad ⬇).
+- **Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `CUIDAVOZ_API_BASE` (= URL de Render), `CUIDAVOZ_INTERNAL_TOKEN` (ver seguridad ⬇), `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Opcional: `NEXT_PUBLIC_ENABLE_PUSH_TEST=true` solo para mostrar "Probar aviso" en producción.
 - **Render:** `STORAGE_BACKEND=postgres`, `DATABASE_URL` (Supabase Cloud, Session pooler + `?sslmode=require`), `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL_REPORT=claude-haiku-4-5-20251001`, `LLM_MODEL_LIGHT=claude-haiku-4-5-20251001`, `ASR_PROVIDER=faster_whisper`, `WHISPER_MODEL=tiny`, `INTERNAL_API_TOKEN` (ver seguridad ⬇).
 - **Nota LLM:** en prod ambos modelos usan Haiku. Sonnet (`claude-sonnet-4-6`) puede requerir acceso especial según el tier de la cuenta Anthropic; Haiku funciona con cualquier key.
 - **Nota ASR:** `WHISPER_MODEL=tiny` permite procesar audio en tiempo real (~20–40s con servidor caliente). Para mejor calidad de transcripción usar `base` (más lento, no apto para demo en vivo). El modelo se pre-descarga en la imagen Docker.
-- Migraciones a la nube: `npx supabase link --project-ref obznbqvtsktwbeceitan` + `npx supabase db push` (incluye hasta `0006_fix_families_rls.sql`).
+- Migraciones a la nube: `npx supabase link --project-ref obznbqvtsktwbeceitan` + `npx supabase db push` (mantener aplicado todo `supabase/migrations/`).
 
 ### ⚠️ Seguridad: token interno API (OBLIGATORIO en prod)
 El backend Python usa el **service role** de Supabase (bypassa RLS), así que **no debe ser público**: cualquiera que conozca un `elder_id` podría leer/escribir datos de otra familia pegándole directo a Render. Para cerrarlo, la API valida un token compartido en el header `X-Internal-Token`:

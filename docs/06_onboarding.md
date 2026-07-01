@@ -49,13 +49,13 @@ Desde la raíz del repo:
 
 ```bash
 npx supabase start      # levanta Postgres + Auth + Studio en Docker
-npx supabase db reset   # aplica las migraciones (supabase/migrations/0001..0006)
+npx supabase db reset   # aplica las migraciones (supabase/migrations/*)
 ```
 
 `supabase start` te imprime los datos que vas a necesitar:
 - **API URL**: `http://127.0.0.1:54321`
 - **DB**: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
-- **anon key** (un `eyJ...`)
+- **anon / publishable key**
 - **Studio**: `http://127.0.0.1:54323`
 
 *(Opcional)* datos de demo: pegá el contenido de `web/supabase-seed.sql` en
@@ -120,9 +120,21 @@ Completá `.env.local` con lo que imprimió `supabase start`:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<la anon key local>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<la anon/publishable key local>
 CUIDAVOZ_API_BASE=http://localhost:8000
 CUIDAVOZ_INTERNAL_TOKEN=          # vacío en local (tiene que coincidir con el del backend)
+```
+
+Para probar notificaciones Web Push, generá VAPID y agregá:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+```
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=<public key>
+VAPID_PRIVATE_KEY=<private key>
+VAPID_SUBJECT=mailto:cuidavoz.team@gmail.com
 ```
 
 Correr:

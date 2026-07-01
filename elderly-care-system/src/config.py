@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # Sonnet daría mejor fidelidad pero corre riesgo de pasarse del límite.
     llm_model_report: str = "claude-haiku-4-5-20251001"
     llm_model_light: str = "claude-haiku-4-5-20251001"
+    # Agente de seguimiento proactivo (P18). Modelo POR-FEATURE: es el hook para
+    # migrar SOLO este agente a un modelo propio (p. ej. self-hosteado en la VM)
+    # sin tocar el resto — se cambia acá, y para un proveedor nuevo se agrega en
+    # pipeline/llm.py. El módulo del agente no cambia.
+    llm_model_followup: str = "claude-haiku-4-5-20251001"
 
     groq_api_key: str = ""
 

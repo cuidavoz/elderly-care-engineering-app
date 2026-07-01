@@ -195,7 +195,7 @@ class PostgresReportStore(_Conexion):
             with self._get().cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, elder_id, payload
+                    SELECT id, elder_id, payload, created_at
                     FROM public.reports
                     WHERE elder_id = %s
                     ORDER BY fecha DESC, created_at DESC
@@ -206,7 +206,7 @@ class PostgresReportStore(_Conexion):
                 filas = cur.fetchall()
 
         resultado: list[ReporteGuardado] = []
-        for rid, eid, payload in filas:
+        for rid, eid, payload, creado_en in filas:
             reporte = Reporte(**payload)
             resultado.append(
                 ReporteGuardado(
@@ -214,6 +214,7 @@ class PostgresReportStore(_Conexion):
                     fecha=reporte.fecha,
                     reporte=reporte,
                     id=str(rid),
+                    creado_en=creado_en,  # timestamptz -> datetime tz-aware
                 )
             )
         return resultado

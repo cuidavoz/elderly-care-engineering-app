@@ -13,7 +13,7 @@ import json
 import sqlite3
 import threading
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from src.config import settings
@@ -27,6 +27,9 @@ class ReporteGuardado:
     fecha: date
     reporte: Reporte
     id: int | None = None
+    # Timestamp real de creación (UTC). Habilita ventanas por horas y "hace
+    # cuánto"; `fecha` es solo el día. Puede ser None en datos viejos.
+    creado_en: datetime | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -89,19 +92,25 @@ class ReportStore:
     def listar(self, elder_id: str, limite: int = 30) -> list[ReporteGuardado]:
         with self._lock:
             filas = self._conn.execute(
-                "SELECT id, elder_id, fecha, reporte FROM reportes "
+                "SELECT id, elder_id, fecha, reporte, creado_en FROM reportes "
                 "WHERE elder_id = ? ORDER BY id DESC LIMIT ?",
                 (elder_id, limite),
             ).fetchall()
         resultado: list[ReporteGuardado] = []
         for fila in filas:
             reporte = Reporte(**json.loads(fila["reporte"]))
+            # SQLite guarda `creado_en` como 'YYYY-MM-DD HH:MM:SS' (UTC).
+            try:
+                creado_en = datetime.fromisoformat(fila["creado_en"])
+            except (KeyError, IndexError, TypeError, ValueError):
+                creado_en = None
             resultado.append(
                 ReporteGuardado(
                     elder_id=fila["elder_id"],
                     fecha=reporte.fecha,
                     reporte=reporte,
                     id=fila["id"],
+                    creado_en=creado_en,
                 )
             )
         return resultado
